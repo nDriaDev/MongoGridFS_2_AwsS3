@@ -49,7 +49,7 @@ const server = app.listen(port, async () => {
 				accessKeyId: process.env.AWS_ACCESS_KEY_ID,
 				secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
 			},
-			...(process.env.ENV !== "LOCAL" && { requestHandler: { httpsAgent: proxyAgent } })
+			...(process.env.IS_LOCAL !== "true" && { requestHandler: { httpsAgent: proxyAgent } })
 		});
 		console.log("Client AWS S3 initialized");
 	}
