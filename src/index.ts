@@ -6,7 +6,7 @@ import { configSwagger } from "./utils/swagger.js";
 import path from "path";
 import { HttpsProxyAgent } from "https-proxy-agent";
 
-const proxyAgent = new HttpsProxyAgent("http://proxysogei.sogei.it:8080");
+const proxyAgent = new HttpsProxyAgent(process.env.PROXY_HOST!);
 const port = process.env.PORT ?? "9001";
 
 const app = express();
