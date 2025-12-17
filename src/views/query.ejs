@@ -1,0 +1,47 @@
+<%- include('partials/header') %>
+
+<h1>Mongo Query Builder</h1>
+
+<form>
+    <div id="rules"></div>
+
+    <button type="button" class="btn btn-secondary my-3" onclick="addRule()">
+        ➕ Aggiungi condizione
+    </button>
+
+    <input type="hidden" name="query" id="queryInput">
+    <datalist id="operators">
+        <option value="$eq">
+        <option value="$gt">
+        <option value="$gte">
+        <option value="$lt">
+        <option value="$lte">
+        <option value="$ne">
+        <option value="$in">
+        <option value="$nin">
+        <option value="$regex">
+    </datalist>
+
+    <div class="mb-3">
+        <label class="form-label">Query Mongo (preview)</label>
+        <div id="editor" style="height: 300px; border: 1px solid #ccc"></div>
+    </div>
+
+    <button id="exec" type="button" class="btn btn-primary">Esegui</button>
+    <a id="s3" href="/resultsS3" class="btn btn-warning">AWS S3 Bucket</a>
+</form>
+
+<script src="/js/query-builder.js"></script>
+<script src="https://unpkg.com/monaco-editor@0.45.0/min/vs/loader.js"></script>
+<script>
+    require.config({
+        paths: {
+            vs: 'https://unpkg.com/monaco-editor@0.45.0/min/vs'
+        }
+    });
+
+    require(['vs/editor/editor.main'], function () {
+        window.initMonaco();
+    });
+</script>
+<%- include('partials/footer') %>

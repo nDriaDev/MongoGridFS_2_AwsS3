@@ -1,0 +1,47 @@
+{
+	"name": "arts_dei_uda_images_uploader",
+	"version": "1.0.0",
+	"type": "module",
+	"main": "index.js",
+	"scripts": {
+		"dev:local": "tsx --watch --env-file environment/.env.local src/index.ts",
+		"dev:val": "tsx --watch --env-file environment/.env.val src/index.ts",
+		"dev:prod": "tsx --watch --env-file environment/.env.prod src/index.ts",
+		"start:local": "node --env-file environment/.env.local dist/index.js",
+		"start:val": "node --env-file environment/.env.val dist/index.js",
+		"start:prod": "node --env-file environment/.env.prod dist/index.js",
+		"build": "tsc",
+		"type-check": "tsc --noEmit",
+		"lint": "eslint .",
+		"lint:fix": "eslint --fix .",
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"engines": {
+		"node": "22.20.0"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"description": "",
+	"dependencies": {
+		"@aws-sdk/client-s3": "^3.952.0",
+		"@aws-sdk/lib-storage": "^3.952.0",
+		"ejs": "^3.1.10",
+		"express": "^5.2.1",
+		"mongodb": "^7.0.0",
+		"p-limit": "^7.2.0",
+		"swagger-jsdoc": "^6.2.8",
+		"swagger-ui-express": "^5.0.1"
+	},
+	"devDependencies": {
+		"@eslint/js": "^9.17.0",
+		"@types/express": "^5.0.0",
+		"@types/node": "^22.10.2",
+		"@types/swagger-jsdoc": "^6.0.4",
+		"@types/swagger-ui-express": "^4.1.8",
+		"eslint": "^9.17.0",
+		"tsx": "^4.19.2",
+		"typescript": "^5.7.2",
+		"typescript-eslint": "^8.18.2"
+	}
+}

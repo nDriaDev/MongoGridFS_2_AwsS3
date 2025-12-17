@@ -1,0 +1,146 @@
+<%- include('partials/header') %>
+<h1 class="mb-4">AWS S3 Bucket</h1>
+<div class="row mb-4">
+    <div class="col-md-6">
+        <input type="text" id="prefixInput" class="form-control" placeholder="Inserisci prefisso..." />
+    </div>
+    <div class="col-md-2">
+        <button id="searchBtn" class="btn btn-primary w-100">
+            Cerca
+        </button>
+    </div>
+</div>
+
+<div id="loading" class="text-center my-5">
+    <div class="spinner-border text-primary" role="status"></div>
+    <div class="mt-2">Caricamento in corso...</div>
+</div>
+
+<div id="empty" class="alert alert-warning d-none">
+    Nessun risultato trovato.
+</div>
+
+<div id="tableContainer" class="d-none">
+    <div class="mb-3">
+        <strong>Totale risultati:</strong>
+        <span id="total"></span>
+    </div>
+
+    <table class="table table-striped align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>Filename</th>
+                <th>Size</th>
+                <th>Storage</th>
+                <th style="width: 120px">Azioni</th>
+            </tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+    </table>
+</div>
+
+</div>
+
+<script>
+    const loading = document.getElementById("loading");
+    const empty = document.getElementById("empty");
+    const tableContainer = document.getElementById("tableContainer");
+    const resultsBody = document.getElementById("resultsBody");
+    const totalEl = document.getElementById("total");
+    const prefixInput = document.getElementById("prefixInput");
+    const searchBtn = document.getElementById("searchBtn");
+
+    async function loadResults(prefix = "") {
+        // reset UI
+        loading.classList.remove("d-none");
+        empty.classList.add("d-none");
+        tableContainer.classList.add("d-none");
+        resultsBody.innerHTML = "";
+
+        try {
+            const encodedPrefix = encodeURIComponent(prefix);
+            const res = await fetch(`/api/v1/s3${prefix !== "" ? "/"+encodedPrefix : ""}`);
+            const data = await res.json();
+
+            loading.classList.add("d-none");
+
+            if (!data || data.length === 0) {
+                empty.classList.remove("d-none");
+                return;
+            }
+
+            totalEl.textContent = data.length;
+
+            data.forEach((item, index) => {
+                const tr = document.createElement("tr");
+                tr.setAttribute("id", "row-"+index);
+                tr.innerHTML = `
+          <td>${item.fileName}</td>
+          <td>${item.size}</td>
+          <td>${item.storage}</td>
+          <td>
+            <button class="btn btn-sm btn-danger" onclick="deleteFile(${index},'${item.fileName}')">Elimina</button>
+          </td>
+        `;
+                resultsBody.appendChild(tr);
+            });
+
+            tableContainer.classList.remove("d-none");
+
+        } catch (err) {
+            loading.classList.add("d-none");
+            alert("Errore nel caricamento dei dati");
+            console.error(err);
+        }
+    }
+
+    // click su "Cerca"
+    searchBtn.addEventListener("click", () => {
+        loadResults(prefixInput.value.trim());
+    });
+
+    // ENTER nel campo input
+    prefixInput.addEventListener("keydown", e => {
+        if (e.key === "Enter") {
+            loadResults(prefixInput.value.trim());
+        }
+    });
+    async function deleteFile(index, id) {
+        if (!confirm(`Sei sicuro di voler eliminare il file ${id}?`)) {
+            return;
+        }
+
+        const btn = document.querySelector(
+            `#row-${index} button`
+        );
+        btn.disabled = true;
+        btn.textContent = "Elimino...";
+
+        try {
+            const res = await fetch(`/api/v1/s3-del-one/${encodeURIComponent(id)}`);
+
+            if (!res.ok) {
+                throw new Error("Errore eliminazione");
+            }
+
+            document.getElementById(`row-${index}`).remove();
+
+            const totalEl = document.getElementById("total");
+            totalEl.textContent = Number(totalEl.textContent) - 1;
+
+            if (Number(totalEl.textContent) === 0) {
+                document.getElementById("tableContainer").classList.add("d-none");
+                document.getElementById("empty").classList.remove("d-none");
+            }
+
+        } catch (err) {
+            alert("Errore durante l'eliminazione");
+            btn.disabled = false;
+            btn.textContent = "Elimina";
+            console.error(err);
+        }
+    }
+    loadResults();
+</script>
+
+<%- include('partials/footer') %>

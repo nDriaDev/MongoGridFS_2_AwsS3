@@ -1,0 +1,99 @@
+<%- include('partials/header') %>
+
+<h1 class="mb-4">Risultati Query</h1>
+
+<% if (!results || results.length===0) { %>
+    <div class="alert alert-warning">Nessun risultato trovato.</div>
+    <% } else { %>
+        <a id="new" href="/" class="btn btn-primary mb-4">Nuova Query</a>
+        <a id="s3" href="/resultsS3" class="btn btn-warning mb-4">AWS S3 Bucket</a>
+        <button id="startUpload" class="btn btn-success mb-4">Upload su S3</button>
+        <button id="startUploadParallel" class="btn btn-success mb-4">Upload parallelo su S3</button>
+
+        <div class="mb-3">
+            <strong>Totale risultati:</strong>
+            <%= results.length %>
+        </div>
+
+        <table class="table table-striped table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>ID</th>
+                    <th>Type</th>
+                    <th>Mime Type</th>
+                    <th style="width: 30%">Upload</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% results.forEach(item=> { %>
+                    <tr>
+                        <td>
+                            <%= item.id %>
+                        </td>
+                        <td>
+                            <%= item.type %>
+                        </td>
+                        <td>
+                            <%= item.mimeType %>
+                        </td>
+                        <td>
+                            <div class="progress">
+                                <div id="progress-<%= item.id %>" class="progress-bar" role="progressbar" style="width: 0%" aria-valuemin="0"
+                                    aria-valuemax="100">
+                                    0%
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+            <% } %>
+
+            <div id="uploadStatus">
+            </div>
+            <script>
+                let evtSource;
+                window.addEventListener('beforeunload', e => {
+                    !!evtSource && evtSource.close();
+                });
+                const newBtn = document.getElementById("new");
+                const s3Btn = document.getElementById("s3");
+                const startBtn = document.getElementById("startUpload");
+                const startParallelBtn = document.getElementById("startUploadParallel");
+                const uploadStatus = document.getElementById("uploadStatus");
+
+                async function startUpload(e, parallel) {
+                    s3.disabled = true;
+                    newBtn.disabled = true;
+                    startBtn.disabled = true;
+                    startParallelBtn.disabled = true;
+
+                    evtSource = new EventSource(`/api/v1/sse/upload-photo${parallel ? "-parallel" : ""}`);
+
+                    evtSource.onmessage = e => {
+                        const { id, loaded, total, event } = JSON.parse(e.data);
+                        if(event && event === "complete") {
+                            evtSource.close();
+                            s3.disabled = false;
+                            newBtn.disabled = false;
+                            return;
+                        }
+                        const percent = Math.floor((loaded / total) * 100);
+
+                        const bar = document.getElementById(`progress-${id}`);
+                        if (!bar) return;
+
+                        bar.style.width = percent + "%";
+                        bar.textContent = percent + "%";
+
+                        if (percent === 100) {
+                            bar.classList.add("bg-success");
+                        }
+                    };
+                }
+
+                startBtn.addEventListener("click", e => startUpload(e, false), { once: true});
+                startParallelBtn.addEventListener("click", e => startUpload(e, true), { once: true});
+            </script>
+            <%- include('partials/footer') %>
