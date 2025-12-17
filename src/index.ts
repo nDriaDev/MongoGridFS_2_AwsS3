@@ -4,7 +4,9 @@ import { routes } from "./router/index.js";
 import { S3Client } from "@aws-sdk/client-s3";
 import { configSwagger } from "./utils/swagger.js";
 import path from "path";
+import { HttpsProxyAgent } from "https-proxy-agent";
 
+const proxyAgent = new HttpsProxyAgent("http://proxysogei.sogei.it:8080");
 const port = process.env.PORT ?? "9001";
 
 const app = express();
@@ -46,7 +48,8 @@ const server = app.listen(port, async () => {
 			credentials: {
 				accessKeyId: process.env.AWS_ACCESS_KEY_ID,
 				secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-			}
+			},
+			...(process.env.ENV !== "LOCAL" && { requestHandler: { httpsAgent: proxyAgent } })
 		});
 		console.log("Client AWS S3 initialized");
 	}
