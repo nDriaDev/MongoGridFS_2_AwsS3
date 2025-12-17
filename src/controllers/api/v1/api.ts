@@ -27,12 +27,32 @@ export const apiController = {
 		try {
 			if (!req.app.locals.dbClient) {
 				res.status(500).send({message: "No Mongo Client initialized."})
+			} else if (!process.env.MONGO_COLLECTION_PROJECT_FIELD || process.env.MONGO_COLLECTION_PROJECT_FIELD === "") {
+				res.status(500).send({ message: "No field provided to project mongo data." })
 			} else {
 				const { query } = req.params;
 				const queryParsed = JSON.parse(query);
 				const db = req.app.locals.dbClient.db(process.env.MONGO_DB_NAME!);
-				const udas = await db.collection(process.env.MONGO_DB_COLLECTION!).find(queryParsed).project({ documentiDaCaricare: 1, idUda: 1 }).toArray();
-				const data = udas.map(el => ({ id: el.idUda, type: el.documentiDaCaricare[0].nomeFile, mimeType: el.documentiDaCaricare[0].mimeType }));
+				const project = {};
+				const fields = process.env.MONGO_COLLECTION_PROJECT_FIELD.split(",");
+				fields.map(el => Reflect.set(project, el, 1));
+				const mongoData = await db.collection(process.env.MONGO_DB_COLLECTION!).find(queryParsed).project(project).toArray();
+				const data = mongoData.map(el => {
+					const obj: { id: string; type: string; mimeType: string; } & Record<string, string> = {
+						id: "",
+						type: "",
+						mimeType: ""
+					};
+					fields.forEach(field => {
+						if (typeof Array.isArray(el[field])) {
+							obj.type = el[field][0].nomeFile;
+							obj.mimeType = el[field][0].mimeType;
+						} else {
+							obj[field] = el[field];
+						}
+					})
+					return obj;
+				});
 				req.app.locals.data = data;
 				res.status(200).send(data);
 			}

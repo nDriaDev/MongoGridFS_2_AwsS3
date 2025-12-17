@@ -6,7 +6,7 @@ declare global {
 		interface Locals {
 			dbClient?: MongoClient;
 			s3Client?: S3Client;
-			data: {id: string, type: string, mimeType: string}[]
+			data: ({id: string, type: string, mimeType: string} & Record<string, string>)[]
 		}
 	}
 }
