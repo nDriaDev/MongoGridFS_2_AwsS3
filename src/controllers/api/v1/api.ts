@@ -48,7 +48,7 @@ export const apiController = {
 							obj.type = el[field][0].nomeFile;
 							obj.mimeType = el[field][0].mimeType;
 						} else {
-							obj[field] = el[field];
+							!obj.id ? (obj.id = el[field]) : (obj[field] = el[field]);
 						}
 					})
 					return obj;
