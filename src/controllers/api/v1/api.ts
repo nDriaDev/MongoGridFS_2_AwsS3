@@ -44,7 +44,7 @@ export const apiController = {
 						mimeType: ""
 					};
 					fields.forEach(field => {
-						if (typeof Array.isArray(el[field])) {
+						if (Array.isArray(el[field])) {
 							obj.type = el[field][0].nomeFile;
 							obj.mimeType = el[field][0].mimeType;
 						} else {
