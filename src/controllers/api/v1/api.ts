@@ -83,7 +83,7 @@ export const apiController = {
 					dbName: process.env.MONGO_DB_NAME!,
 					gridFsBucketName: process.env.MONGO_DB_GRIDFS_BUCKET!,
 					parallel: false,
-					prefix: process.env.AWS_BUCKET_FOLDER_PREFIX + "_" + new Date().toLocaleDateString().replaceAll("/", ""),
+					prefix: process.env.AWS_BUCKET_FOLDER_PREFIX + "/" + new Date().toLocaleDateString().replaceAll("/", ""),
 					s3Client: req.app.locals.s3Client!,
 					onTransfer
 				});
@@ -118,7 +118,7 @@ export const apiController = {
 					dbName: process.env.MONGO_DB_NAME!,
 					gridFsBucketName: process.env.MONGO_DB_GRIDFS_BUCKET!,
 					parallel: true,
-					prefix: process.env.AWS_BUCKET_FOLDER_PREFIX + "_" + new Date().toLocaleDateString().replaceAll("/", ""),
+					prefix: process.env.AWS_BUCKET_FOLDER_PREFIX + "/" + new Date().toLocaleDateString().replaceAll("/", ""),
 					s3Client: req.app.locals.s3Client!,
 					onTransfer
 				});
@@ -153,7 +153,7 @@ export const apiController = {
 					dbName: process.env.MONGO_DB_NAME!,
 					gridFsBucketName: process.env.MONGO_DB_GRIDFS_BUCKET!,
 					parallel: false,
-					prefix: process.env.AWS_BUCKET_FOLDER_PREFIX + "_" + new Date().toLocaleDateString().replaceAll("/", ""),
+					prefix: process.env.AWS_BUCKET_FOLDER_PREFIX + "/" + new Date().toLocaleDateString().replaceAll("/", ""),
 					s3Client: req.app.locals.s3Client!,
 					onTransfer
 				});
@@ -187,7 +187,7 @@ export const apiController = {
 					dbName: process.env.MONGO_DB_NAME!,
 					gridFsBucketName: process.env.MONGO_DB_GRIDFS_BUCKET!,
 					parallel: true,
-					prefix: process.env.AWS_BUCKET_FOLDER_PREFIX + "_" + new Date().toLocaleDateString().replaceAll("/", ""),
+					prefix: process.env.AWS_BUCKET_FOLDER_PREFIX + "/" + new Date().toLocaleDateString().replaceAll("/", ""),
 					s3Client: req.app.locals.s3Client!,
 					onTransfer
 				});
@@ -204,7 +204,7 @@ export const apiController = {
 				res.status(500).send({ message: "No AWS S3 Client initialized." })
 			} else {
 				const { prefix } = req.params;
-				const command = new ListObjectsCommand({ Bucket: process.env.AWS_BUCKET_NAME!, Prefix: prefix || process.env.AWS_BUCKET_FOLDER_PREFIX });
+				const command = new ListObjectsCommand({ Bucket: process.env.AWS_BUCKET_NAME!, Prefix: prefix.indexOf(process.env.AWS_BUCKET_FOLDER_PREFIX!) !== -1 ? process.env.AWS_BUCKET_FOLDER_PREFIX + "/" + prefix : prefix });
 				const result = await req.app.locals.s3Client.send(command);
 				const list = (result.Contents || []).map(el => ({ fileName: el.Key, size: el.Size, tag: el.ETag, storage: el.StorageClass, owner: el.Owner }));
 				res.status(200).json(list);
@@ -221,7 +221,7 @@ export const apiController = {
 				const { filename, prefix } = req.params;
 				let command;
 				if (prefix) {
-					const commandList = new ListObjectsCommand({ Bucket: process.env.AWS_BUCKET_NAME!, Prefix: prefix });
+					const commandList = new ListObjectsCommand({ Bucket: process.env.AWS_BUCKET_NAME!, Prefix: prefix.indexOf(process.env.AWS_BUCKET_FOLDER_PREFIX!) !== -1 ? process.env.AWS_BUCKET_FOLDER_PREFIX + "/" + prefix : prefix });
 					const result = await req.app.locals.s3Client.send(commandList);
 					if (!result.Contents || result.Contents.length === 0) {
 						res.status(404).json({ message: "No files found with prefix " + prefix });
