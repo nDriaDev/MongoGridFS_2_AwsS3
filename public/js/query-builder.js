@@ -1,6 +1,8 @@
 let rules = [];
 let availableFields = [];
 let editor = null;
+let mongoOptions = {
+};
 
 const mongoOperators = [
 	"$eq", "$ne", "$gt", "$gte", "$lt", "$lte",
@@ -22,12 +24,14 @@ window.initMonaco = function () {
 
 async function loadFields() {
 	try {
-		const res = await fetch("/api/v1/uda/fields");
+		const res = await fetch("/api/v1/collection/fields");
 		if (!res.ok) {
 			alert("Errore nella ricezione dei campi")
 		}
 		availableFields = await res.json();
 		renderRules();
+		renderSortFields();
+		renderProjectionFields();
 	} catch (err) {
 		console.error("Errore caricando campi:", err);
 	}
@@ -183,17 +187,108 @@ function buildMongoQuery() {
 }
 
 function updateQueryPreview() {
-	const query = buildMongoQuery();
-	const json = JSON.stringify(query, null, 2);
+	const filter = buildMongoQuery();
+
+	const preview = {
+		filter,
+		options: mongoOptions
+	};
+
+	const json = JSON.stringify(preview, null, 2);
 
 	if (editor) editor.setValue(json);
+
 	const input = document.getElementById("queryInput");
-	if (input) input.value = json;
+	if (input) input.value = JSON.stringify(preview);
 }
 
-document.getElementById("exec").addEventListener("click", async () => {
+function renderSortFields() {
+	const sortSelect = document.getElementById("sortField");
+	sortSelect.innerHTML = `<option value="">-- Nessun ordinamento --</option>`;
+
+	availableFields.forEach(f => {
+		const opt = document.createElement("option");
+		opt.value = f;
+		opt.textContent = f;
+		sortSelect.appendChild(opt);
+	});
+
+	sortSelect.onchange = updateMongoOptions;
+	document.getElementById("sortOrder").onchange = updateMongoOptions;
+}
+
+function renderProjectionFields() {
+	const container = document.getElementById("projectionFields");
+	container.innerHTML = "";
+
+	availableFields.forEach(f => {
+		const col = document.createElement("div");
+		col.className = "col-3";
+
+		const label = document.createElement("label");
+		label.className = "form-check-label";
+
+		const checkbox = document.createElement("input");
+		checkbox.type = "checkbox";
+		checkbox.className = "form-check-input me-1";
+		checkbox.value = f;
+		checkbox.onchange = updateMongoOptions;
+
+		label.appendChild(checkbox);
+		label.append(` ${f}`);
+
+		const wrapper = document.createElement("div");
+		wrapper.className = "form-check";
+		wrapper.appendChild(label);
+
+		col.appendChild(wrapper);
+		container.appendChild(col);
+	});
+}
+
+function updateMongoOptions() {
+	mongoOptions = {};
+
+	const sortField = document.getElementById("sortField").value;
+	const sortOrder = document.getElementById("sortOrder").value;
+	if (sortField) {
+		mongoOptions.sort = { [sortField]: Number(sortOrder) };
+	}
+
+	const limit = document.getElementById("limit").value;
+	if (limit) {
+		mongoOptions.limit = Number(limit);
+	}
+
+	const projection = {};
+	document
+		.querySelectorAll("#projectionFields input[type=checkbox]:checked")
+		.forEach(cb => {
+			projection[cb.value] = 1;
+		});
+
+	if (Object.keys(projection).length > 0) {
+		mongoOptions.projection = projection;
+	}
+
+	updateQueryPreview();
+}
+
+document.getElementById("limit").onchange = updateMongoOptions;
+
+const btnExec = document.getElementById("exec");
+const aS3 = document.getElementById("s3");
+const loading = document.getElementById("loading");
+
+btnExec.addEventListener("click", async () => {
+	btnExec.disabled = true;
+	aS3.disabled = true;
+	loading?.removeAttribute("hidden");
 	const queryObj = editor ? JSON.parse(editor.getValue()) : {};
 	const query = encodeURIComponent(JSON.stringify(queryObj));
-	await fetch(`/api/v1/uda/get/${query}`);
+	await fetch(`/api/v1/collection/get/${query}`);
+	btnExec.disabled = false;
+	aS3.disabled = false;
+	loading?.setAttribute("hidden", true);
 	window.location.href = "/results";
 });

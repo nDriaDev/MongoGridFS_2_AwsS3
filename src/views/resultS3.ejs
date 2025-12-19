@@ -51,7 +51,6 @@
     const searchBtn = document.getElementById("searchBtn");
 
     async function loadResults(prefix = "") {
-        // reset UI
         loading.classList.remove("d-none");
         empty.classList.add("d-none");
         tableContainer.classList.add("d-none");
@@ -79,7 +78,10 @@
           <td>${item.size}</td>
           <td>${item.storage}</td>
           <td>
-            <button class="btn btn-sm btn-danger" onclick="deleteFile(${index},'${item.fileName}')">Elimina</button>
+            <div class="d-flex gap-1">
+                <button class="btn btn-sm btn-primary" onclick="downloadFile(${index},'${item.fileName}')">Scarica</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteFile(${index},'${item.fileName}')">Elimina</button>
+            </div>
           </td>
         `;
                 resultsBody.appendChild(tr);
@@ -94,12 +96,10 @@
         }
     }
 
-    // click su "Cerca"
     searchBtn.addEventListener("click", () => {
         loadResults(prefixInput.value.trim());
     });
 
-    // ENTER nel campo input
     prefixInput.addEventListener("keydown", e => {
         if (e.key === "Enter") {
             loadResults(prefixInput.value.trim());
@@ -111,7 +111,7 @@
         }
 
         const btn = document.querySelector(
-            `#row-${index} button`
+            `#row-${index} button:nth-child(2)`
         );
         btn.disabled = true;
         btn.textContent = "Elimino...";
@@ -137,6 +137,33 @@
             alert("Errore durante l'eliminazione");
             btn.disabled = false;
             btn.textContent = "Elimina";
+            console.error(err);
+        }
+    }
+    async function downloadFile(index, id) {
+        const btn = document.querySelector(
+            `#row-${index} button`
+        );
+        try {
+            btn.disabled = true;
+            btn.textContent = "Scarico...";
+            const response = await fetch("/api/v1/s3-download/"+ encodeURIComponent(id));
+            const contentDisposition = response.headers.get('Content-Disposition');
+            const blob = await response.blob();
+            const link = document.createElement('a');
+            const objectURL = URL.createObjectURL(blob);
+            link.href = objectURL;
+            link.download = contentDisposition.substring(contentDisposition.indexOf("filename=")+"filename=".length);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(objectURL);
+            btn.disabled = false;
+            btn.textContent = "Scarica";
+        } catch (error) {
+            alert("Errore durante il download");
+            btn.disabled = false;
+            btn.textContent = "Scarica";
             console.error(err);
         }
     }

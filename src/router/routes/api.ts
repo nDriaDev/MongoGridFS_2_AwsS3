@@ -4,9 +4,9 @@ import { controllers } from "../../controllers/index.js";
 export const apiRoutes = (router: Router) => {
 	/**
 	* @openapi
-	* /api/v1/uda/fields:
+	* /api/v1/collection/fields:
 	*   get:
-	*     summary: Esegue la query per ottenere l'elenco dei campi di un documento della collection UdaArtsDei
+	*     summary: Esegue la query per ottenere l'elenco dei campi di un documento della collection indicata nel file env
 	*     tags:
 	*       - Mongo
 	*     responses:
@@ -44,12 +44,12 @@ export const apiRoutes = (router: Router) => {
 	*                 message:
 	*                   type: string
 	*/
-	router.get("/uda/fields", controllers.apiController.getUdaFields);
+	router.get("/collection/fields", controllers.apiController.getFields);
 	/**
 	* @openapi
-	* /api/v1/uda/get/{query}:
+	* /api/v1/collection/get/{query}:
 	*   get:
-	*     summary: Esegue la query per la ricerca delle uda di cui prelevare le foto con la query passata come query param
+	*     summary: Esegue la query per la ricerca dei documenti di cui prelevare i file con la query passata come query param
 	*     tags:
 	*       - Mongo
 	*     parameters:
@@ -60,7 +60,7 @@ export const apiRoutes = (router: Router) => {
 	*           type: string
 	*     responses:
 	*       200:
-	*         description: La lista di uda trovate
+	*         description: La lista di documenti trovati
 	*         content:
 	*           application/json:
 	*             schema:
@@ -84,12 +84,12 @@ export const apiRoutes = (router: Router) => {
 	*                 message:
 	*                   type: string
 	*/
-	router.get("/uda/get/:query", controllers.apiController.getUdaData);
+	router.get("/collection/get/:query", controllers.apiController.getData);
 	/**
 	* @openapi
-	* /api/v1/upload-photo:
+	* /api/v1/upload-file:
 	*   get:
-	*     summary: Esegue l'upload delle foto trovate precedentemente con il servizio /uda/:query
+	*     summary: Esegue l'upload dei file trovate precedentemente con il servizio /collection/:query
 	*     tags:
 	*       - GridFS
 	*     responses:
@@ -121,12 +121,12 @@ export const apiRoutes = (router: Router) => {
 	*                 message:
 	*                   type: string
 	*/
-	router.get("/upload-photo", controllers.apiController.uploadPhoto);
+	router.get("/upload-file", controllers.apiController.uploadFile);
 	/**
 	* @openapi
-	* /api/v1/upload-photo-parallel:
+	* /api/v1/upload-file-parallel:
 	*   get:
-	*     summary: Esegue l'upload delle foto trovate precedentemente con il servizio /uda/:query in parallelo
+	*     summary: Esegue l'upload dei file trovati precedentemente con il servizio /collection/:query in parallelo
 	*     tags:
 	*       - GridFS
 	*     responses:
@@ -158,12 +158,12 @@ export const apiRoutes = (router: Router) => {
 	*                 message:
 	*                   type: string
 	*/
-	router.get("/upload-photo-parallel", controllers.apiController.uploadPhotoParallel);
+	router.get("/upload-file-parallel", controllers.apiController.uploadFileParallel);
 	/**
 	* @openapi
-	* /api/v1/sse/upload-photo:
+	* /api/v1/sse/upload-file:
 	*   get:
-	*     summary: Esegue l'upload delle foto trovate precedentemente con il servizio /uda/:query e invia i progressi tramite Server-Sent Events
+	*     summary: Esegue l'upload dei file trovati precedentemente con il servizio /collection/:query e invia i progressi tramite Server-Sent Events
 	*     tags:
 	*       - GridFS
 	*     responses:
@@ -199,12 +199,12 @@ export const apiRoutes = (router: Router) => {
 	*                 message:
 	*                   type: string
 	*/
-	router.get("/sse/upload-photo", controllers.apiController.sseUploadPhoto);
+	router.get("/sse/upload-file", controllers.apiController.sseUploadFile);
 	/**
 	* @openapi
-	* /api/v1/sse/upload-photo-parallel:
+	* /api/v1/sse/upload-file-parallel:
 	*   get:
-	*     summary: Esegue l'upload delle foto trovate precedentemente con il servizio /uda/:query in parallelo e invia i progressi tramite Server-Sent Events
+	*     summary: Esegue l'upload dei file trovati precedentemente con il servizio /collection/:query in parallelo e invia i progressi tramite Server-Sent Events
 	*     tags:
 	*       - GridFS
 	*     responses:
@@ -240,7 +240,7 @@ export const apiRoutes = (router: Router) => {
 	*                 message:
 	*                   type: string
 	*/
-	router.get("/sse/upload-photo-parallel", controllers.apiController.sseUploadPhotoParallel);
+	router.get("/sse/upload-file-parallel", controllers.apiController.sseUploadFileParallel);
 	/**
 	* @openapi
 	* /api/v1/s3:
@@ -323,6 +323,52 @@ export const apiRoutes = (router: Router) => {
 	*                   type: string
 	*/
 	router.get("/s3/:prefix", controllers.apiController.readBucketContent);
+	/**
+	* @openapi
+	* /api/v1/s3-download/{filename}:
+	*   get:
+	*     summary: Esegue il download dal bucket del file con filename quello indicato come path param
+	*     tags:
+	*       - AWS S3 Bucket
+	*     parameters:
+	*       - name: filename
+	*         in: path
+	*         required: true
+	*         schema:
+	*           type: string
+	*     responses:
+	*       200:
+	*         description: Il file
+	*         content:
+	*           multipart/form-data:
+	*       400:
+	*         description: Richiesta non valida
+	*         content:
+	*           application/json:
+	*             schema:
+	*               type: array
+	*               items:
+	*                 type: string
+	*       404:
+	*         description: File non trovato
+	*         content:
+	*           application/json:
+	*             schema:
+	*               type: object
+	*               properties:
+	*                 message:
+	*                   type: string
+	*       500:
+	*         description: Errore interno
+	*         content:
+	*           application/json:
+	*             schema:
+	*               type: object
+	*               properties:
+	*                 message:
+	*                   type: string
+	*/
+	router.get("/s3-download/:filename", controllers.apiController.downloadBucketFile);
 	/**
 	* @openapi
 	* /api/v1/s3-del-one/{filename}:

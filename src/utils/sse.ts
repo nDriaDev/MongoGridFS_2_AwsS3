@@ -15,8 +15,12 @@ export const SSEUtils = {
 	addClient: (res: Response) => clients.push(res),
 	removeClient: (res: Response) => clients.filter(el => el !== res),
 	sendData: (data: object) => {
-		const payload = `data: ${JSON.stringify(data)}\n\n`;
-		clients.forEach(res => res.write(payload));
+		try {
+			const payload = `data: ${JSON.stringify(data)}\n\n`;
+			clients.forEach(res => res.write(payload));
+		} catch (error) {
+			console.error(error);
+		}
 	},
 	closeEvent: (message?: string) => {
 		clients.forEach(res => {

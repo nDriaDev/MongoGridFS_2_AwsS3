@@ -7,9 +7,9 @@ export function configSwagger(app: Express) {
 		definition: {
 			openapi: "3.0.0",
 			info: {
-				title: "ARTS DEI UDA IMAGES UPLOADER",
+				title: "MongoGridFS 2 AWS S3",
 				version: "1.0.0",
-				description: "Api to upload photo from mongo GridFS to AWS S3 Bucket",
+				description: "Api to upload file from mongo GridFS to AWS S3 Bucket",
 			},
 		},
 		apis: ["./src/router/*.ts", "./src/router/routes/*.ts"], // percorsi ai file dove annoti le rotte

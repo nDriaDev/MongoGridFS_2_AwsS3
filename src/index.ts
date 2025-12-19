@@ -6,7 +6,6 @@ import { configSwagger } from "./utils/swagger.js";
 import path from "path";
 import { HttpsProxyAgent } from "https-proxy-agent";
 
-const proxyAgent = new HttpsProxyAgent(process.env.PROXY_HOST!);
 const port = process.env.PORT ?? "9001";
 
 const app = express();
@@ -20,15 +19,6 @@ app.use(express.json());
 
 configSwagger(app);
 
-app.get("/", (req, res) => {
-	res.render("query", { title: "Query Builder" });
-});
-app.get("/results", (req, res) => {
-	res.render("result", { title: "Query Results", results: req.app.locals.data });
-});
-app.get("/resultsS3", (req, res) => {
-	res.render("resultS3", { title: "Aws Bucket S3" });
-});
 routes(app);
 
 let serverClosed = false;
@@ -43,6 +33,10 @@ const server = app.listen(port, async () => {
 	if (!process.env.AWS_REGION || !process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
 		console.warn("No AWS S3 data provided");
 	} else {
+		let proxyAgent;
+		if (process.env.IS_LOCAL !== "true") {
+			proxyAgent = new HttpsProxyAgent(process.env.PROXY_HOST!);
+		}
 		app.locals.s3Client = new S3Client({
 			region: process.env.AWS_REGION,
 			credentials: {

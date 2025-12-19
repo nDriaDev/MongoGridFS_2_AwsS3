@@ -27,8 +27,46 @@
         <div id="editor" style="height: 300px; border: 1px solid #ccc"></div>
     </div>
 
+    <hr>
+
+    <h4>Opzioni Mongo</h4>
+
+    <div class="mb-3">
+        <label class="form-label">Ordinamento</label>
+        <div class="row g-2">
+            <div class="col-6">
+                <select id="sortField" class="form-select">
+                    <option value="">-- Nessun ordinamento --</option>
+                </select>
+            </div>
+            <div class="col-3">
+                <select id="sortOrder" class="form-select">
+                    <option value="1">Ascendente</option>
+                    <option value="-1">Discendente</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Limit</label>
+        <input type="number" id="limit" class="form-control" min="1">
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Proiezione</label>
+        <div id="projectionFields" class="row"></div>
+    </div>
+
+    <input type="hidden" id="optionsInput">
+
     <button id="exec" type="button" class="btn btn-primary">Esegui</button>
     <a id="s3" href="/resultsS3" class="btn btn-warning">AWS S3 Bucket</a>
+
+    <div hidden id="loading" class="text-center my-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <div class="mt-2">Caricamento in corso...</div>
+    </div>
 </form>
 
 <script src="/js/query-builder.js"></script>
