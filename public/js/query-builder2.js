@@ -1,13 +1,10 @@
 let rules = [];
 let availableFields = [];
 let editor = null;
-let mongoOptions = {
-};
+let mongoOptions = {};
+let gridfsOptions = {};
 
-const mongoOperators = [
-	"$eq", "$ne", "$gt", "$gte", "$lt", "$lte",
-	"$in", "$nin", "$regex"
-];
+const mongoOperators = ["$eq", "$ne", "$gt", "$gte", "$lt", "$lte", "$in", "$nin", "$regex"];
 
 window.initMonaco = function () {
 	editor = monaco.editor.create(
@@ -22,9 +19,9 @@ window.initMonaco = function () {
 	updateQueryPreview();
 };
 
-async function loadFields() {
+async function loadFields(collection) {
 	try {
-		const res = await fetch("/api/v1/collection/fields");
+		const res = await fetch(`/api/v2/collections/${collection}/fields`);
 		if (!res.ok) {
 			alert("Errore nella ricezione dei campi")
 		}
@@ -37,8 +34,35 @@ async function loadFields() {
 	}
 }
 
+async function loadCollection() {
+	try {
+		const res = await fetch(`/api/v2/collections`);
+		if (!res.ok) {
+			alert("Errore nella ricezione delle collection")
+		}
+		const data = await res.json();
+		const select = document.getElementById("collection");
+		let opt = document.createElement("option");
+		opt.value = "";
+		opt.innerHTML = "-- Seleziona una Collection --"
+		select?.appendChild(opt);
+		opt = null;
+		data.forEach(coll => {
+			const opt = document.createElement("option");
+			opt.setAttribute("value", coll);
+			opt.innerHTML = coll;
+			select?.appendChild(opt);
+		});
+		select.onchange = (e) => {
+			e.target.value !== "" && loadFields(e.target.value);
+		}
+	} catch (err) {
+		console.error("Errore caricando campi:", err);
+	}
+}
+
 window.addEventListener("DOMContentLoaded", () => {
-	loadFields();
+	loadCollection();
 });
 
 function addRule() {
@@ -274,21 +298,74 @@ function updateMongoOptions() {
 	updateQueryPreview();
 }
 
+function getOptions() {
+	const options = {
+		mongoOptions: mongoOptions,
+		gridfsOptions: {}
+	};
+
+	if (document.getElementById("gridfsSwitch").checked) {
+		options.gridfsOptions = {
+			field: document.getElementById("gridfsField").value,
+			prefix: document.getElementById("gridfsPrefix").value,
+			suffix: document.getElementById("gridfsSuffix").value,
+			matchField: document.getElementById("gridfsMatchField").value
+		};
+	}
+
+	return options;
+}
+
 document.getElementById("limit").onchange = updateMongoOptions;
 
 const btnExec = document.getElementById("exec");
 const aS3 = document.getElementById("s3");
 const loading = document.getElementById("loading");
 
-btnExec.addEventListener("click", async () => {
+btnExec.addEventListener("click", async (e) => {
+	const gridSwitch = document.getElementById("gridfsSwitch");
+	const gridfsField = document.getElementById("gridfsField");
+	const gridfsMatchField = document.getElementById("gridfsMatchField");
+	const errors = [];
+	if (!gridfsField.value) {
+		errors.push("Nome campo per il match con GridFS");
+	}
+	if (!gridfsMatchField) {
+		errors.push("Campo per il match della collection GridFS");
+	}
+	if (gridSwitch.checked && errors.length > 0) {
+		alert(`${errors.length > 1 ? "I Campi\n" : "Il campo\n"}${errors.join("\n")}${errors.length > 1 ? "\nsono obbligatori" : "\nè obbligatorio"}`);
+		return;
+	}
 	btnExec.disabled = true;
 	aS3.disabled = true;
 	loading?.removeAttribute("hidden");
 	const queryObj = editor ? JSON.parse(editor.getValue()) : {};
+	const options = getOptions();
+	queryObj.gridFS = options;
 	const query = encodeURIComponent(JSON.stringify(queryObj));
+
 	await fetch(`/api/v1/collection/get/${query}`);
 	btnExec.disabled = false;
 	aS3.disabled = false;
 	loading?.setAttribute("hidden", true);
 	window.location.href = "/results";
+});
+
+document.getElementById("gridfsSwitch").addEventListener("change", function () {
+	const gridfsFields = document.getElementById("gridfsFields");
+	if (this.checked) {
+		gridfsFields.style.display = "block";
+	} else {
+		gridfsFields.style.display = "none";
+	}
+});
+
+document.getElementById("mongoOptionsSwitch").addEventListener("change", function () {
+	const gridfsFields = document.getElementById("mongoOptionsFields");
+	if (this.checked) {
+		gridfsFields.style.display = "block";
+	} else {
+		gridfsFields.style.display = "none";
+	}
 });

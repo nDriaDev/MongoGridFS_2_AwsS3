@@ -1,12 +1,48 @@
 import { Router } from "express";
-import { controllers } from "../../controllers/index.js";
+import { controllers } from "../../../../controllers/index.js";
 
-export const apiRoutes = (router: Router) => {
+export const apiV2Routes = (router: Router) => {
 	/**
 	* @openapi
-	* /api/v1/collection/fields:
+	* /api/v2/collections:
 	*   get:
-	*     summary: Esegue la query per ottenere l'elenco dei campi di un documento della collection indicata nel file env
+	*     summary: Restituisce tutti i nomi delle collection presenti sul db indicato nelle variabili d'ambiente
+	*     tags:
+	*       - Mongo
+	*     responses:
+	*       200:
+	*         description: La lista dei nomi delle collection
+	*         content:
+	*           application/json:
+	*             schema:
+	*               type: array
+	*               items:
+	*                 type: string
+	*       400:
+	*         description: Errore collection empty
+	*         content:
+	*           application/json:
+	*             schema:
+	*               type: object
+	*               properties:
+	*                 message:
+	*                   type: string
+	*       500:
+	*         description: Errore interno
+	*         content:
+	*           application/json:
+	*             schema:
+	*               type: object
+	*               properties:
+	*                 message:
+	*                   type: string
+	*/
+	router.get("/collections", controllers.apiV2Controller.getCollections);
+	/**
+	* @openapi
+	* /api/v2/collections/:collection/fields:
+	*   get:
+	*     summary: Esegue la query per ottenere l'elenco dei campi di un documento della collection indicata come path param
 	*     tags:
 	*       - Mongo
 	*     responses:
@@ -44,7 +80,7 @@ export const apiRoutes = (router: Router) => {
 	*                 message:
 	*                   type: string
 	*/
-	router.get("/collection/fields", controllers.apiController.getFields);
+	router.get("/collections/:collection/fields", controllers.apiV2Controller.getFields);
 	/**
 	* @openapi
 	* /api/v1/collection/get/{query}:
@@ -84,7 +120,7 @@ export const apiRoutes = (router: Router) => {
 	*                 message:
 	*                   type: string
 	*/
-	router.get("/collection/get/:query", controllers.apiController.getData);
+	router.get("/collection/get/:query", controllers.apiV2Controller.getData);
 	/**
 	* @openapi
 	* /api/v1/upload-file:
@@ -121,7 +157,7 @@ export const apiRoutes = (router: Router) => {
 	*                 message:
 	*                   type: string
 	*/
-	router.get("/upload-file", controllers.apiController.uploadFile);
+	router.get("/upload-file", controllers.apiV2Controller.uploadFile);
 	/**
 	* @openapi
 	* /api/v1/upload-file-parallel:
@@ -158,7 +194,7 @@ export const apiRoutes = (router: Router) => {
 	*                 message:
 	*                   type: string
 	*/
-	router.get("/upload-file-parallel", controllers.apiController.uploadFileParallel);
+	router.get("/upload-file-parallel", controllers.apiV2Controller.uploadFileParallel);
 	/**
 	* @openapi
 	* /api/v1/sse/upload-file:
@@ -199,7 +235,7 @@ export const apiRoutes = (router: Router) => {
 	*                 message:
 	*                   type: string
 	*/
-	router.get("/sse/upload-file", controllers.apiController.sseUploadFile);
+	router.get("/sse/upload-file", controllers.apiV2Controller.sseUploadFile);
 	/**
 	* @openapi
 	* /api/v1/sse/upload-file-parallel:
@@ -240,7 +276,7 @@ export const apiRoutes = (router: Router) => {
 	*                 message:
 	*                   type: string
 	*/
-	router.get("/sse/upload-file-parallel", controllers.apiController.sseUploadFileParallel);
+	router.get("/sse/upload-file-parallel", controllers.apiV2Controller.sseUploadFileParallel);
 	/**
 	* @openapi
 	* /api/v1/s3:
@@ -278,7 +314,7 @@ export const apiRoutes = (router: Router) => {
 	*                 message:
 	*                   type: string
 	*/
-	router.get("/s3", controllers.apiController.readBucketContent);
+	router.get("/s3", controllers.apiV2Controller.readBucketContent);
 	/**
 	* @openapi
 	* /api/v1/s3/{prefix}:
@@ -322,7 +358,7 @@ export const apiRoutes = (router: Router) => {
 	*                 message:
 	*                   type: string
 	*/
-	router.get("/s3/:prefix", controllers.apiController.readBucketContent);
+	router.get("/s3/:prefix", controllers.apiV2Controller.readBucketContent);
 	/**
 	* @openapi
 	* /api/v1/s3-download/{filename}:
@@ -368,7 +404,7 @@ export const apiRoutes = (router: Router) => {
 	*                 message:
 	*                   type: string
 	*/
-	router.get("/s3-download/:filename", controllers.apiController.downloadBucketFile);
+	router.get("/s3-download/:filename", controllers.apiV2Controller.downloadBucketFile);
 	/**
 	* @openapi
 	* /api/v1/s3-del-one/{filename}:
@@ -419,7 +455,7 @@ export const apiRoutes = (router: Router) => {
 	*                 message:
 	*                   type: string
 	*/
-	router.get("/s3-del-one/:filename", controllers.apiController.deleteBucketFile);
+	router.get("/s3-del-one/:filename", controllers.apiV2Controller.deleteBucketFile);
 	/**
 	* @openapi
 	* /api/v1/s3-del-many/{prefix}:
@@ -470,6 +506,6 @@ export const apiRoutes = (router: Router) => {
 	*                 message:
 	*                   type: string
 	*/
-	router.get("/s3-del-many/:prefix", controllers.apiController.deleteBucketFile);
+	router.get("/s3-del-many/:prefix", controllers.apiV2Controller.deleteBucketFile);
 	return router;
 }
