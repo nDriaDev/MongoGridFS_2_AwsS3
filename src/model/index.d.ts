@@ -15,6 +15,8 @@ declare global {
 }
 
 export interface QueryOptions {
+	use: "query" | "aggregation",
+	aggregation: Document[];
 	collection: string;
 	includeData: boolean;
 	dataPrefixOnS3: string;

@@ -61,7 +61,7 @@ export const apiV2Controller = {
 					res.status(400).send({ message: "No data selected to upload on S3." });
 					return;
 				}
-				if ("collectionField" in queryParsed.gridfsOptions && "projection" in queryParsed.options && queryParsed.options.projection) {
+				if (queryParsed.use === "query" && "collectionField" in queryParsed.gridfsOptions && "projection" in queryParsed.options && queryParsed.options.projection) {
 					const val = queryParsed.options.projection[queryParsed.gridfsOptions.collectionField];
 					if (queryParsed.gridfsOptions.collectionField !== "_id" && val !== 1) {
 						res.status(400).send({ message: "GridFS collection field missing in projection query." });
@@ -86,8 +86,8 @@ export const apiV2Controller = {
 				return;
 			}
 			const db = req.app.locals.dbClient.db(process.env.MONGO_DB_NAME!);
-			const { collection, includeData, filter, gridfsOptions, options } = req.app.locals.queryOptions;
-			const result: { data?: number; files?: number; } = await MongoUtils.getCounts(includeData, db, collection, filter, options, gridfsOptions);
+			const { collection, includeData, filter, gridfsOptions, options, aggregation, use } = req.app.locals.queryOptions;
+			const result: { data?: number; files?: number; } = await MongoUtils.getCounts(includeData, db, collection, use, aggregation, filter, options, gridfsOptions);
 			res.status(200).json(result);
 		} catch (error) {
 			next(error);
@@ -105,16 +105,18 @@ export const apiV2Controller = {
 			}
 			SSEUtils.initSSE(req, res);
 			const db = req.app.locals.dbClient.db(process.env.MONGO_DB_NAME!);
-			const { collection, includeData, dataPrefixOnS3, filter, gridfsOptions, options } = req.app.locals.queryOptions;
+			const { collection, includeData, dataPrefixOnS3, use, aggregation, filter, gridfsOptions, options } = req.app.locals.queryOptions;
 			let data = Number(req.params.data);
 			let files = Number(req.params.files);
 			if (data === -1 && files === -1) {
-				const result: { data: number; files: number; } = await MongoUtils.getCounts(includeData, db, collection, filter, options, gridfsOptions);
+				const result: { data: number; files: number; } = await MongoUtils.getCounts(includeData, db, collection, use, aggregation, filter, options, gridfsOptions);
 				data = result.data;
 				files = result.files;
 			}
 			SSEUtils.sendData({ event: "count", totalData: data, totalGridFS: files });
-			const stream = db.collection(collection).find(filter, {...options, batchSize: 1000}).stream();
+			const stream = use === "query"
+				? db.collection(collection).find(filter, { ...options, batchSize: 1000 }).stream()
+				: db.collection(collection).aggregate(aggregation).stream();
 			const UPLOAD_GRIDFS_FILE = "collectionField" in gridfsOptions;
 			const gridFsMatchValues: string[] = [];
 
@@ -143,7 +145,7 @@ export const apiV2Controller = {
 					client: req.app.locals.s3Client!,
 					params: {
 						Bucket: process.env.AWS_BUCKET_NAME!,
-						Key: `${dataPrefixOnS3 ? dataPrefixOnS3 + "/" : ""}${collection}.jsonl`,
+						Key: `${dataPrefixOnS3 ? dataPrefixOnS3 + "/" : ""}${collection}${use === "query" ? "" : "_aggregated"}.jsonl`,
 						Body: passThrough,
 						ContentType: "application/json"
 					}

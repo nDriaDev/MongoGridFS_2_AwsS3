@@ -1,6 +1,8 @@
 let rules = [];
+let activeTab = 0;
 let availableFields = [];
 let editor = null;
+let editorAggr = null;
 let mongoOptions = {};
 let gridfsOptions = {};
 
@@ -11,6 +13,15 @@ window.initMonaco = function () {
 		document.getElementById("editor"),
 		{
 			value: "{}",
+			language: "json",
+			theme: "vs-dark",
+			automaticLayout: true
+		}
+	);
+	editorAggr = monaco.editor.create(
+		document.getElementById("editor-aggr"),
+		{
+			value: "[\n  \n]",
 			language: "json",
 			theme: "vs-dark",
 			automaticLayout: true
@@ -345,7 +356,7 @@ function getOptions() {
 	if (document.getElementById("gridfsSwitch").checked) {
 		options.gridfsOptions = {
 			gridFsPrefixOnS3: document.getElementById("gridfs-prefix-val").value,
-			collectionField: document.getElementById("gridfsField").value,
+			collectionField: document.getElementById(`gridfsField${activeTab === 0 ? "" : "Text"}`).value,
 			prefix: document.getElementById("gridfsPrefix").value,
 			suffix: document.getElementById("gridfsSuffix").value,
 			matchField: document.getElementById("gridfsMatchField").value
@@ -373,13 +384,14 @@ const loading = document.getElementById("loading");
 btnExec.addEventListener("click", async (e) => {
 	const gridSwitch = document.getElementById("gridfsSwitch");
 	const gridfsField = document.getElementById("gridfsField");
+	const gridfsFieldText = document.getElementById("gridfsFieldText");
 	const gridfsMatchField = document.getElementById("gridfsMatchField");
 	const collection = document.getElementById("collection");
 	const dataPrefixVal = document.getElementById("data-prefix-val");
 	const includeData = document.getElementById("includeData");
 
 	const errors = [];
-	if (!gridfsField.value) {
+	if (activeTab === 0 && !gridfsField.value || activeTab === 1 && !gridfsFieldText.value) {
 		gridSwitch.checked && errors.push("Nome campo per il match con GridFS");
 	}
 	if (!gridfsMatchField) {
@@ -403,6 +415,8 @@ btnExec.addEventListener("click", async (e) => {
 		collection: collection.value,
 		includeData: includeData.checked,
 		dataPrefixOnS3: dataPrefixVal.value,
+		aggregation: JSON.parse(editorAggr.getValue()),
+		use: activeTab === 0 ? "query" : "aggregation"
 	};
 	const query = encodeURIComponent(JSON.stringify(queryObj));
 	console.log(queryObj)
@@ -460,6 +474,111 @@ document.getElementById("includeData").addEventListener("change", function () {
 		document.getElementById("data-prefix-val").value = "";
 	}
 });
+
+document.querySelectorAll('.stage-btn').forEach(btn => {
+	btn.addEventListener('click', () => {
+		const stage = btn.dataset.stage;
+		let pipeline;
+		try {
+			pipeline = JSON.parse(editor.getValue());
+			if (!Array.isArray(pipeline)) pipeline = [];
+		} catch {
+			pipeline = [];
+		}
+
+		switch (stage) {
+			case "$match":
+				pipeline.push({ "$match": {} });
+				break;
+			case "$project":
+				pipeline.push({ "$project": {} });
+				break;
+			case "$group":
+				pipeline.push({ "$group": {} });
+				break;
+			case "$sort":
+				pipeline.push({ "$sort": {} });
+				break;
+			case "$limit":
+				pipeline.push({ "$limit": 10 });
+				break;
+			case "$skip":
+				pipeline.push({ "$skip": 0 });
+				break;
+			case "$unwind":
+				pipeline.push({ "$unwind": "$field" });
+				break;
+			case "$lookup":
+				pipeline.push({
+					"$lookup": {
+						from: "otherCollection",
+						localField: "field",
+						foreignField: "otherField",
+						as: "result"
+					}
+				});
+				break;
+			case "$addFields":
+				pipeline.push({ "$addFields": { "newField": "value" } });
+				break;
+			case "$count":
+				pipeline.push({ "$count": "countField" });
+				break;
+			case "$facet":
+				pipeline.push({ "$facet": { "output1": [{ "$match": {} }], "output2": [{ "$group": {} }] } });
+				break;
+			case "$bucket":
+				pipeline.push({
+					"$bucket": {
+						groupBy: "$field",
+						boundaries: [0, 10, 20, 30],
+						default: "Other",
+						output: { "count": { "$sum": 1 } }
+					}
+				});
+				break;
+			case "$out":
+				pipeline.push({ "$out": "newCollection" });
+				break;
+			case "$geoNear":
+				pipeline.push({
+					"$geoNear": {
+						near: { type: "Point", coordinates: [-73.99279, 40.719296] },
+						distanceField: "dist.calculated",
+						maxDistance: 1000,
+						query: { type: "restaurant" },
+						includeLocs: "location",
+						num: 5
+					}
+				});
+				break;
+			case "$replaceRoot":
+				pipeline.push({ "$replaceRoot": { newRoot: "$newDocument" } });
+				break;
+			default:
+				break;
+		}
+
+		editorAggr.setValue(JSON.stringify(pipeline, null, 2));
+	});
+});
+
+document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(el => el.addEventListener('show.bs.tab', function (event) {
+	const id = event.target.id.split("-tab")[0];
+	const IS_QUERY = id === "query"
+	activeTab = IS_QUERY ? 0 : 1;
+	document.getElementById(id)?.removeAttribute("hidden");
+	document.getElementById(IS_QUERY ? "aggregation" : "query")?.setAttribute("hidden", true);
+	const gridfsField = document.getElementById("gridfsField");
+	const gridfsFieldText = document.getElementById("gridfsFieldText");
+	if (IS_QUERY) {
+		gridfsField?.removeAttribute("hidden");
+		gridfsFieldText?.setAttribute("hidden", true);
+	} else {
+		gridfsFieldText?.removeAttribute("hidden");
+		gridfsField?.setAttribute("hidden", true);
+	}
+}));
 
 window.addEventListener("DOMContentLoaded", async () => {
 	toggleSpinner();

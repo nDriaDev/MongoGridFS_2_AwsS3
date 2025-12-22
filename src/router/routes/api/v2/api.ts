@@ -8,6 +8,7 @@ export const apiV2Routes = (router: Router) => {
 	*   get:
 	*     summary: Restituisce tutti i nomi delle collection presenti sul db indicato nelle variabili d'ambiente
 	*     tags:
+	*       - v2
 	*       - Mongo
 	*     responses:
 	*       200:
@@ -44,6 +45,7 @@ export const apiV2Routes = (router: Router) => {
 	*   get:
 	*     summary: Esegue la query per ottenere l'elenco dei campi di un documento della collection indicata come path param
 	*     tags:
+	*       - v2
 	*       - Mongo
 	*     responses:
 	*       200:
@@ -87,6 +89,7 @@ export const apiV2Routes = (router: Router) => {
 	*   get:
 	*     summary: Esegue la query per la ricerca dei documenti di cui prelevare i file con la query passata come query param
 	*     tags:
+	*       - v2
 	*       - Mongo
 	*     parameters:
 	*       - name: query
@@ -127,6 +130,7 @@ export const apiV2Routes = (router: Router) => {
 	*   get:
 	*     summary: Esegue la query per ottenere il totale dei documenti e dei file su gridFS da portare sul bucket AWS S3
 	*     tags:
+	*       - v2
 	*       - Mongo
 	*     responses:
 	*       200:
@@ -157,6 +161,7 @@ export const apiV2Routes = (router: Router) => {
 	*   get:
 	*     summary: Esegue l'upload dei file trovati precedentemente con il servizio /collection/:query e invia i progressi tramite Server-Sent Events
 	*     tags:
+	*       - v2
 	*       - GridFS
 	*     parameters:
 	*       - name: data
@@ -209,6 +214,7 @@ export const apiV2Routes = (router: Router) => {
 	*   get:
 	*     summary: Esegue la ricerca sul bucket s3 dei file
 	*     tags:
+	*       - v2
 	*       - AWS S3 Bucket
 	*     responses:
 	*       200:
@@ -247,6 +253,7 @@ export const apiV2Routes = (router: Router) => {
 	*   get:
 	*     summary: Esegue la ricerca sul bucket s3 dei file contenuti sotto il prefisso indicato come path param
 	*     tags:
+	*       - v2
 	*       - AWS S3 Bucket
 	*     parameters:
 	*       - name: prefix
@@ -291,6 +298,7 @@ export const apiV2Routes = (router: Router) => {
 	*   get:
 	*     summary: Esegue il download dal bucket del file con filename quello indicato come path param
 	*     tags:
+	*       - v2
 	*       - AWS S3 Bucket
 	*     parameters:
 	*       - name: filename
@@ -337,6 +345,7 @@ export const apiV2Routes = (router: Router) => {
 	*   get:
 	*     summary: Esegue la cancellazione dal bucket del file con filename quello indicato come path param
 	*     tags:
+	*       - v2
 	*       - AWS S3 Bucket
 	*     parameters:
 	*       - name: filename
@@ -388,6 +397,7 @@ export const apiV2Routes = (router: Router) => {
 	*   get:
 	*     summary: Esegue la cancellazione dal bucket dei file con prefisso quello indicato come path param
 	*     tags:
+	*       - v2
 	*       - AWS S3 Bucket
 	*     parameters:
 	*       - name: prefix

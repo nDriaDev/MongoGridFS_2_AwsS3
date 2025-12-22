@@ -1,11 +1,11 @@
 import express, { Express } from "express"
-import { apiRoutes } from "./routes/api/v1/apiv1.js";
+import { apiRoutes } from "./routes/api/v1/api.js";
 import { healthRoutes } from "./routes/health.js";
 import { noRouteHandler } from "./routes/noRoute.js";
 import { errorHandler } from "./routes/error.js";
 import { middleware } from "../middlewares/middlewares.js";
 import { views } from "./routes/views.js";
-import { apiV2Routes } from "./routes/api/v2/apiv2.js";
+import { apiV2Routes } from "./routes/api/v2/api.js";
 
 export const routes = (app: Express) => {
 	views(app);

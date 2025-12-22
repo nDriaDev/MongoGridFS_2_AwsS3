@@ -8,6 +8,7 @@ export const apiRoutes = (router: Router) => {
 	*   get:
 	*     summary: Esegue la query per ottenere l'elenco dei campi di un documento della collection indicata nel file env
 	*     tags:
+	*       - v1
 	*       - Mongo
 	*     responses:
 	*       200:
@@ -51,6 +52,7 @@ export const apiRoutes = (router: Router) => {
 	*   get:
 	*     summary: Esegue la query per la ricerca dei documenti di cui prelevare i file con la query passata come query param
 	*     tags:
+	*       - v1
 	*       - Mongo
 	*     parameters:
 	*       - name: query
@@ -91,6 +93,7 @@ export const apiRoutes = (router: Router) => {
 	*   get:
 	*     summary: Esegue l'upload dei file trovate precedentemente con il servizio /collection/:query
 	*     tags:
+	*       - v1
 	*       - GridFS
 	*     responses:
 	*       200:
@@ -128,6 +131,7 @@ export const apiRoutes = (router: Router) => {
 	*   get:
 	*     summary: Esegue l'upload dei file trovati precedentemente con il servizio /collection/:query in parallelo
 	*     tags:
+	*       - v1
 	*       - GridFS
 	*     responses:
 	*       200:
@@ -165,6 +169,7 @@ export const apiRoutes = (router: Router) => {
 	*   get:
 	*     summary: Esegue l'upload dei file trovati precedentemente con il servizio /collection/:query e invia i progressi tramite Server-Sent Events
 	*     tags:
+	*       - v1
 	*       - GridFS
 	*     responses:
 	*       200:
@@ -206,6 +211,7 @@ export const apiRoutes = (router: Router) => {
 	*   get:
 	*     summary: Esegue l'upload dei file trovati precedentemente con il servizio /collection/:query in parallelo e invia i progressi tramite Server-Sent Events
 	*     tags:
+	*       - v1
 	*       - GridFS
 	*     responses:
 	*       200:
@@ -247,6 +253,7 @@ export const apiRoutes = (router: Router) => {
 	*   get:
 	*     summary: Esegue la ricerca sul bucket s3 dei file contenuti sotto il prefisso indicato nelle variabili di ambiente
 	*     tags:
+	*       - v1
 	*       - AWS S3 Bucket
 	*     responses:
 	*       200:
@@ -285,6 +292,7 @@ export const apiRoutes = (router: Router) => {
 	*   get:
 	*     summary: Esegue la ricerca sul bucket s3 dei file contenuti sotto il prefisso indicato come path param
 	*     tags:
+	*       - v1
 	*       - AWS S3 Bucket
 	*     parameters:
 	*       - name: prefix
@@ -329,6 +337,7 @@ export const apiRoutes = (router: Router) => {
 	*   get:
 	*     summary: Esegue il download dal bucket del file con filename quello indicato come path param
 	*     tags:
+	*       - v1
 	*       - AWS S3 Bucket
 	*     parameters:
 	*       - name: filename
@@ -375,6 +384,7 @@ export const apiRoutes = (router: Router) => {
 	*   get:
 	*     summary: Esegue la cancellazione dal bucket del file con filename quello indicato come path param
 	*     tags:
+	*       - v1
 	*       - AWS S3 Bucket
 	*     parameters:
 	*       - name: filename
@@ -426,6 +436,7 @@ export const apiRoutes = (router: Router) => {
 	*   get:
 	*     summary: Esegue la cancellazione dal bucket dei file con prefisso quello indicato come path param
 	*     tags:
+	*       - v1
 	*       - AWS S3 Bucket
 	*     parameters:
 	*       - name: prefix

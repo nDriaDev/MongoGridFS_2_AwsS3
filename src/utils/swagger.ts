@@ -12,7 +12,7 @@ export function configSwagger(app: Express) {
 				description: "Api to upload file from mongo GridFS to AWS S3 Bucket",
 			},
 		},
-		apis: ["./src/router/*.ts", "./src/router/routes/*.ts"], // percorsi ai file dove annoti le rotte
+		apis: ["./src/router/*.ts", "./src/router/routes/*.ts", "./src/router/routes/**/*.ts"], // percorsi ai file dove annoti le rotte
 	};
 
 	const swaggerSpec = swaggerJsdoc(options);

@@ -1,5 +1,5 @@
-import { apiController } from "./api/v1/apiv1.js";
-import { apiV2Controller } from "./api/v2/apiv2.js";
+import { apiController } from "./api/v1/api.js";
+import { apiV2Controller } from "./api/v2/api.js";
 import { errorController } from "./error.js";
 import { healthController } from "./health.js";
 import { noRouteController } from "./noRoute.js";
