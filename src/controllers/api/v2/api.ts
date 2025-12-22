@@ -112,14 +112,19 @@ export const apiV2Controller = {
 				const result: { data: number; files: number; } = await MongoUtils.getCounts(includeData, db, collection, use, aggregation, filter, options, gridfsOptions);
 				data = result.data;
 				files = result.files;
+				if (data === -1 && files === -1) {
+					res.status(400).send({ message: "No data to upload." });
+				}
 			}
 			SSEUtils.sendData({ event: "count", totalData: data, totalGridFS: files });
-			const stream = use === "query"
-				? db.collection(collection).find(filter, { ...options, batchSize: 1000 }).stream()
-				: db.collection(collection).aggregate(aggregation).stream();
+
 			const UPLOAD_GRIDFS_FILE = "collectionField" in gridfsOptions;
 			const gridFsMatchValues: string[] = [];
 
+			const passThrough = new PassThrough();
+			const stream = use === "query"
+				? db.collection(collection).find(filter, { ...options, batchSize: 1000 }).stream()
+				: db.collection(collection).aggregate(aggregation).stream();
 			const transformToJsonl = new Transform({
 				objectMode: true,
 				async transform(doc, _, callback) {
@@ -138,9 +143,17 @@ export const apiV2Controller = {
 					}
 				},
 			});
-			const passThrough = new PassThrough();
+			stream.on("error", err => {
+				SSEUtils.sendData({ error: err ? err : "Errore durante lo stream."});
+			})
+			passThrough.on("error", err => {
+				SSEUtils.sendData({error: err ? err : "Errore durante l'upload."});
+			})
+			transformToJsonl.on("error", err => {
+				SSEUtils.sendData({error: err ? err : "Errore durante la creazione del jsonl."});
+			})
 			let upload;
-			if (includeData) {
+			if (includeData && data > 0) {
 				upload = new Upload({
 					client: req.app.locals.s3Client!,
 					params: {
@@ -157,7 +170,7 @@ export const apiV2Controller = {
 				passThrough
 			);
 			upload && await upload.done();
-			if (UPLOAD_GRIDFS_FILE) {
+			if (UPLOAD_GRIDFS_FILE && data > 0 && files > 0) {
 				const limit = pLimit(5);
 				const gridFsBucket = new GridFSBucket(db, { bucketName: gridfsOptions.gridFsCollection });
 				const tasks = [];
