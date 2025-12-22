@@ -152,17 +152,20 @@ export const apiV2Controller = {
 				transformToJsonl,
 				passThrough
 			);
+			transformToJsonl.on("data", chunk => {
+				console.log("TransformToJsonl received chunk");
+				SSEUtils.sendData({ event: "data", type: "data" });
+			});
 			stream.on("error", err => {
+				console.error(err ? err instanceof Error ? err : Error(err) : "Errore durante lo stream.");
 				reject(err ? err instanceof Error ? err : Error(err) : "Errore durante lo stream.");
 			});
 			transformToJsonl.on("error", err => {
+				console.error(err ? err instanceof Error ? err : Error(err) : "Errore durante la creazione del jsonl.");
 				reject(err ? err instanceof Error ? err : Error(err) : "Errore durante la creazione del jsonl.");
 			});
-			passThrough.on("data", chunk => {
-				console.log("PassThrough received chunk");
-				SSEUtils.sendData({ event: "data", type: "data" });
-			});
 			passThrough.on("error", err => {
+				console.error(err ? err instanceof Error ? err : Error(err) : "Errore durante l'upload.");
 				reject(err ? err instanceof Error ? err : Error(err) : "Errore durante l'upload.");
 			});
 			passThrough.on("finish", async () => {

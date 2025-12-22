@@ -147,6 +147,7 @@
                 completed.innerHTML = error;
                 percent = 100;
             }
+            percent = Math.floor(percent);
 
             if (!bar) return;
             bar.parentElement.parentElement.parentElement.removeAttribute("hidden");
