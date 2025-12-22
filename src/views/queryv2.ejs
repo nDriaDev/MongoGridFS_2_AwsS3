@@ -150,13 +150,17 @@
                         <input type="text" id="gridfs-prefix-val" class="form-control">
                     </div>
                     <div class="col-4">
+                        <label class="form-label fw-bold" for="collection">GridFs Collection</label>
+                        <select id="gridFsCollection" class="form-select">
+                        </select>
+                    </div>
+                    <div class="col-4">
                         <label for="gridfsMatchField" class="form-label fw-semibold">Campo per il match della collection GridFS(*)</label>
                         <select id="gridfsMatchField" class="form-select">
                             <option value="_id">_id</option>
                             <option value="filename">filename</option>
                         </select>
                     </div>
-                    <div class="col-4"></div>
                     <div class="col-4">
                         <label for="gridfsField" class="form-label fw-semibold">Campo collection per il match con GridFS(*)</label>
                         <label hidden for="gridfsFieldText" class="form-label fw-semibold">Campo collection per il match con GridFS(*)</label>

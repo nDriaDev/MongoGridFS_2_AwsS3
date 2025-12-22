@@ -28,6 +28,7 @@ export interface QueryOptions {
 	};
 	gridfsOptions: {
 		gridFsPrefixOnS3: string;
+		gridFsCollection: string;
 		collectionField: string;
 		matchField: string;
 		prefix?: string;

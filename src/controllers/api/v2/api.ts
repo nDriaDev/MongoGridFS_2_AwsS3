@@ -159,7 +159,7 @@ export const apiV2Controller = {
 			upload && await upload.done();
 			if (UPLOAD_GRIDFS_FILE) {
 				const limit = pLimit(5);
-				const gridFsBucket = new GridFSBucket(db, { bucketName: process.env.MONGO_DB_GRIDFS_BUCKET! });
+				const gridFsBucket = new GridFSBucket(db, { bucketName: gridfsOptions.gridFsCollection });
 				const tasks = [];
 				for (const match of gridFsMatchValues) {
 					tasks.push(limit(async () => {

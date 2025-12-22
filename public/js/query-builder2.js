@@ -54,16 +54,28 @@ async function loadCollection() {
 		}
 		const data = await res.json();
 		const select = document.getElementById("collection");
+		const selectGridfs = document.getElementById("gridFsCollection");
 		let opt = document.createElement("option");
 		opt.value = "";
 		opt.innerHTML = "-- Seleziona una Collection --"
 		select?.appendChild(opt);
+		let opt2 = document.createElement("option");
+		opt2.value = "";
+		opt2.innerHTML = "-- Seleziona una Collection --"
+		selectGridfs?.appendChild(opt2);
 		opt = null;
 		data.forEach(coll => {
 			const opt = document.createElement("option");
 			opt.setAttribute("value", coll);
 			opt.innerHTML = coll;
 			select?.appendChild(opt);
+			if (coll.includes(".files")) {
+				const val = coll.split(".files")[0];
+				const opt = document.createElement("option");
+				opt.setAttribute("value", val);
+				opt.innerHTML = val;
+				selectGridfs?.appendChild(opt);
+			}
 		});
 		select.onchange = (e) => {
 			e.target.value !== "" && loadFields(e.target.value);
@@ -387,6 +399,7 @@ btnExec.addEventListener("click", async (e) => {
 	const gridfsFieldText = document.getElementById("gridfsFieldText");
 	const gridfsMatchField = document.getElementById("gridfsMatchField");
 	const collection = document.getElementById("collection");
+	const gridFsCollection = document.getElementById("gridFsCollection");
 	const dataPrefixVal = document.getElementById("data-prefix-val");
 	const includeData = document.getElementById("includeData");
 
@@ -399,6 +412,9 @@ btnExec.addEventListener("click", async (e) => {
 	}
 	if (!collection.value) {
 		errors.push("Collection");
+	}
+	if (!gridFsCollection.value) {
+		errors.push("GridFs Collection");
 	}
 	if (errors.length > 0) {
 		alert(`${errors.length > 1 ? "I Campi\n" : "Il campo\n"}${errors.join("\n")}${errors.length > 1 ? "\nsono obbligatori" : "\nè obbligatorio"}`);
