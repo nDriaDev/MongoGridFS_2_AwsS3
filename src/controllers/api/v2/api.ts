@@ -212,7 +212,7 @@ export const apiV2Controller = {
 				const { prefix } = req.params;
 				const command = new ListObjectsCommand({ Bucket: process.env.AWS_BUCKET_NAME!, Prefix: prefix });
 				const result = await req.app.locals.s3Client.send(command);
-				const list = (result.Contents || []).map(el => ({ fileName: el.Key, size: el.Size, tag: el.ETag, storage: el.StorageClass, owner: el.Owner }));
+				const list = (result.Contents || []).map(el => ({ fileName: el.Key, size: el.Size, tag: el.ETag, lastModified: el.LastModified, storage: el.StorageClass, owner: el.Owner }));
 				res.status(200).json(list);
 			}
 		} catch (error) {

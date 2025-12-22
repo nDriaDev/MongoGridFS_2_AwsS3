@@ -35,7 +35,7 @@
             <tr>
                 <th>Filename</th>
                 <th>Size</th>
-                <th>Storage</th>
+                <th>Last edit</th>
                 <th style="width: 120px">Azioni</th>
             </tr>
         </thead>
@@ -64,6 +64,19 @@
         }
     }
 
+    function formatSize(bytes) {
+        const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+        let size = bytes;
+        let unitIndex = 0;
+
+        while (size >= 1024 && unitIndex < units.length - 1) {
+            size /= 1024;
+            unitIndex++;
+        }
+
+        return `${size.toFixed(2)} ${units[unitIndex]}`;
+    }
+
     async function loadResults(prefix = "") {
         toggleSpinner();
         execSearch.classList.add("d-none");
@@ -88,8 +101,8 @@
                 tr.setAttribute("id", "row-"+index);
                 tr.innerHTML = `
           <td>${item.fileName}</td>
-          <td>${item.size}</td>
-          <td>${item.storage}</td>
+          <td>${formatSize(item.size)}</td>
+          <td>${!!item.lastModified ? new Date(item.lastModified).toLocaleDateString() : "N.D."}</td>
           <td>
             <div class="d-flex gap-1">
                 <button class="btn btn-sm btn-primary" onclick="downloadFile(${index},'${item.fileName}')">Scarica</button>
