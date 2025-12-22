@@ -414,7 +414,7 @@ btnExec.addEventListener("click", async (e) => {
 		errors.push("Collection");
 	}
 	if (!gridFsCollection.value) {
-		errors.push("GridFs Collection");
+		gridSwitch.checked && errors.push("GridFs Collection");
 	}
 	if (errors.length > 0) {
 		alert(`${errors.length > 1 ? "I Campi\n" : "Il campo\n"}${errors.join("\n")}${errors.length > 1 ? "\nsono obbligatori" : "\nè obbligatorio"}`);

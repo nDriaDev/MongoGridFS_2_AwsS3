@@ -129,7 +129,7 @@ export const apiV2Controller = {
 				: db.collection(collection).aggregate(aggregation).stream();
 			const transformToJsonl = new Transform({
 				objectMode: true,
-				async transform(doc, _, callback) {
+				transform(doc, _, callback) {
 					try {
 						const docLine = JSON.stringify(doc) + "\n";
 						if (UPLOAD_GRIDFS_FILE) {
@@ -141,9 +141,7 @@ export const apiV2Controller = {
 						} else {
 							callback(null, "");
 						}
-						SSEUtils.sendData({ event: "data", type: "data" });
 					} catch (error) {
-						SSEUtils.sendData({ error: (error as Error).message });
 						callback(error as Error);
 					}
 				},
@@ -155,13 +153,17 @@ export const apiV2Controller = {
 				passThrough
 			);
 			stream.on("error", err => {
-				SSEUtils.sendData({ error: err ? err : "Errore durante lo stream." });
+				reject(err ? err instanceof Error ? err : Error(err) : "Errore durante lo stream.");
 			});
 			transformToJsonl.on("error", err => {
-				SSEUtils.sendData({ error: err ? err : "Errore durante la creazione del jsonl." });
+				reject(err ? err instanceof Error ? err : Error(err) : "Errore durante la creazione del jsonl.");
+			});
+			passThrough.on("data", chunk => {
+				console.log("PassThrough received chunk");
+				SSEUtils.sendData({ event: "data", type: "data" });
 			});
 			passThrough.on("error", err => {
-				SSEUtils.sendData({ error: err ? err : "Errore durante l'upload." });
+				reject(err ? err instanceof Error ? err : Error(err) : "Errore durante l'upload.");
 			});
 			passThrough.on("finish", async () => {
 				console.log("stream data finish");
@@ -172,7 +174,6 @@ export const apiV2Controller = {
 				}
 			});
 			if (includeData && data > 0) {
-				console.log("creating upload...");
 				upload = new Upload({
 					client: req.app.locals.s3Client!,
 					params: {
