@@ -12,7 +12,8 @@
                 "<node_internals>/**"
             ],
 			"envFile": "${workspaceFolder}/environment/.env",
-            "program": "${workspaceFolder}/dist/index.js",
+			"runtimeExecutable": "/home/ndriadev/.nvm/versions/node/v22.20.0/bin/node",
+			"program": "${workspaceFolder}/dist/index.js",
             "outFiles": [
                 "${workspaceFolder}/dist/**/*.js"
             ]

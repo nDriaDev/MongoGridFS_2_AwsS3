@@ -6,8 +6,9 @@ import { SSEUtils } from "../../../utils/sse.js";
 import { QueryOptions } from "../../../model/index.js";
 import { PassThrough, Transform } from "stream";
 import pLimit from "p-limit";
-import { GridFSBucket, ObjectId } from "mongodb";
+import { Db, GridFSBucket, ObjectId } from "mongodb";
 import { pipeline } from "stream/promises";
+import { MongoUtils } from "../../../utils/mongo.js";
 
 export const apiV2Controller = {
 	getCollections: async (req: Request, res: Response, next: NextFunction) => {
@@ -86,18 +87,7 @@ export const apiV2Controller = {
 			}
 			const db = req.app.locals.dbClient.db(process.env.MONGO_DB_NAME!);
 			const { collection, includeData, filter, gridfsOptions, options } = req.app.locals.queryOptions;
-			const countData = await db.collection(collection).countDocuments(filter, options);
-			const result: {data?: number, files?: number} = {data: -1, files: -1};
-			if (!("collectionField" in gridfsOptions)) {
-				result.data = countData;
-			} else {
-				const data = await db.collection(collection).find(filter, options).toArray();
-				const files = await db.collection(process.env.MONGO_DB_GRIDFS_BUCKET + ".files").countDocuments({
-					[gridfsOptions.matchField]: { $in: data.map(el => `${gridfsOptions.prefix}${el[gridfsOptions.collectionField]}${gridfsOptions.suffix}`) }
-				});
-				result.files = files;
-				includeData && (result.data = countData);
-			}
+			const result: { data?: number; files?: number; } = await MongoUtils.getCounts(includeData, db, collection, filter, options, gridfsOptions);
 			res.status(200).json(result);
 		} catch (error) {
 			next(error);
@@ -106,76 +96,50 @@ export const apiV2Controller = {
 	sseUploadFile: async (req: Request, res: Response, next: NextFunction) => {
 		try {
 			if (!req.app.locals.dbClient) {
-				res.status(500).send({ message: "No Mongo Client initialized." })
-			} else {
-				SSEUtils.initSSE(req, res);
-				let data = Number(req.params.data);
-				let files = Number(req.params.files);
-				if (data === -1 && files === -1) {
-					const response = await fetch(`/api/v2/collections/count`);
-					if (!response.ok) {
-						next(Error(response.statusText));
-						return;
-					}
-					const result = await response.json();
-					data = result.data;
-					files = result.files;
-				}
-				SSEUtils.sendData({ event: "count", totalData: data, totalGridFS: files });
-				const { collection, includeData, dataPrefixOnS3, filter, gridfsOptions, options } = req.app.locals.queryOptions;
-				const db = req.app.locals.dbClient.db(process.env.MONGO_DB_NAME!);
-				const stream = db.collection(collection).find(filter, {...options, batchSize: 1000}).stream();
-				const UPLOAD_GRIDFS_FILE = "collectionField" in gridfsOptions;
-				let gridFsBucket, limit;
-				if (UPLOAD_GRIDFS_FILE) {
-					limit = pLimit(5);
-					gridFsBucket = new GridFSBucket(db, { bucketName: process.env.MONGO_DB_GRIDFS_BUCKET! });
-				}
-				const transformToJsonl = new Transform({
-					objectMode: true,
-					async transform(doc, _, callback) {
-						try {
-							if (UPLOAD_GRIDFS_FILE) {
-								await limit!(async () => {
-									try {
-										let valueMatchFile, gridFsStream, mimeStream;
-										if (gridfsOptions.matchField === "_id") {
-											valueMatchFile = new ObjectId((gridfsOptions.prefix || "") + doc[gridfsOptions.collectionField] + (gridfsOptions.suffix || ""));
-											gridFsStream = gridFsBucket!.openDownloadStream(valueMatchFile);
-											mimeStream = gridFsBucket!.openDownloadStream(valueMatchFile);
-										} else {
-											valueMatchFile = (gridfsOptions.prefix || "") + doc[gridfsOptions.collectionField] + (gridfsOptions.suffix || "");
-											gridFsStream = gridFsBucket!.openDownloadStreamByName(valueMatchFile);
-											mimeStream = gridFsBucket!.openDownloadStreamByName(valueMatchFile);
-										}
-										const contentType = await s3Utils.detectContentType(mimeStream);
-										const uploadFile = new Upload({
-											client: req.app.locals.s3Client!,
-											params: {
-												Bucket: process.env.AWS_BUCKET_NAME!,
-												Key: `${gridfsOptions.gridFsPrefixOnS3 ? gridfsOptions.gridFsPrefixOnS3 + "/" : ""}${valueMatchFile}${contentType.indexOf("stream") === -1 ? "." + contentType.split("/")[1] : ""}`,
-												Body: gridFsStream,
-												ContentType: contentType
-											}
-										});
-										await uploadFile.done();
-										SSEUtils.sendData({ event: "data", type: "files" });
-									} catch (error) {
-										SSEUtils.sendData({
-											error: (error as Error).message
-										});
-									}
-								});
-							}
+				res.status(500).send({ message: "No Mongo Client initialized." });
+				return;
+			}
+			if (!req.app.locals.queryOptions) {
+				res.status(500).send({ message: "No query options provided." });
+				return;
+			}
+			SSEUtils.initSSE(req, res);
+			const db = req.app.locals.dbClient.db(process.env.MONGO_DB_NAME!);
+			const { collection, includeData, dataPrefixOnS3, filter, gridfsOptions, options } = req.app.locals.queryOptions;
+			let data = Number(req.params.data);
+			let files = Number(req.params.files);
+			if (data === -1 && files === -1) {
+				const result: { data: number; files: number; } = await MongoUtils.getCounts(includeData, db, collection, filter, options, gridfsOptions);
+				data = result.data;
+				files = result.files;
+			}
+			SSEUtils.sendData({ event: "count", totalData: data, totalGridFS: files });
+			const stream = db.collection(collection).find(filter, {...options, batchSize: 1000}).stream();
+			const UPLOAD_GRIDFS_FILE = "collectionField" in gridfsOptions;
+			const gridFsMatchValues: string[] = [];
+
+			const transformToJsonl = new Transform({
+				objectMode: true,
+				async transform(doc, _, callback) {
+					try {
+						if (UPLOAD_GRIDFS_FILE) {
+							gridFsMatchValues.push((gridfsOptions.prefix || "") + doc[gridfsOptions.collectionField] + (gridfsOptions.suffix || ""));
+						}
+						if (includeData) {
 							SSEUtils.sendData({ event: "data", type: "data" });
 							callback(null, JSON.stringify(doc) + "\n");
-						} catch (error) {
-							callback(error as Error);
+						} else {
+							callback(null, "");
 						}
-					},
-				});
-				const passThrough = new PassThrough();
-				const upload = new Upload({
+					} catch (error) {
+						callback(error as Error);
+					}
+				},
+			});
+			const passThrough = new PassThrough();
+			let upload;
+			if (includeData) {
+				upload = new Upload({
 					client: req.app.locals.s3Client!,
 					params: {
 						Bucket: process.env.AWS_BUCKET_NAME!,
@@ -184,12 +148,50 @@ export const apiV2Controller = {
 						ContentType: "application/json"
 					}
 				});
-				await pipeline(
-					stream,
-					transformToJsonl,
-					passThrough
-				);
-				await upload.done();
+			}
+			await pipeline(
+				stream,
+				transformToJsonl,
+				passThrough
+			);
+			upload && await upload.done();
+			if (UPLOAD_GRIDFS_FILE) {
+				const limit = pLimit(5);
+				const gridFsBucket = new GridFSBucket(db, { bucketName: process.env.MONGO_DB_GRIDFS_BUCKET! });
+				const tasks = [];
+				for (const match of gridFsMatchValues) {
+					tasks.push(limit(async () => {
+						try {
+							let valueMatchFile, gridFsStream, mimeStream;
+							if (gridfsOptions.matchField === "_id") {
+								valueMatchFile = new ObjectId(match);
+								gridFsStream = gridFsBucket!.openDownloadStream(valueMatchFile);
+								mimeStream = gridFsBucket!.openDownloadStream(valueMatchFile);
+							} else {
+								valueMatchFile = match;
+								gridFsStream = gridFsBucket!.openDownloadStreamByName(valueMatchFile);
+								mimeStream = gridFsBucket!.openDownloadStreamByName(valueMatchFile);
+							}
+							const contentType = await s3Utils.detectContentType(mimeStream);
+							const uploadFile = new Upload({
+								client: req.app.locals.s3Client!,
+								params: {
+									Bucket: process.env.AWS_BUCKET_NAME!,
+									Key: `${gridfsOptions.gridFsPrefixOnS3 ? gridfsOptions.gridFsPrefixOnS3 + "/" : ""}${valueMatchFile}${contentType.indexOf("stream") === -1 ? "." + contentType.split("/")[1] : ""}`,
+									Body: gridFsStream,
+									ContentType: contentType
+								}
+							});
+							await uploadFile.done();
+							SSEUtils.sendData({ event: "data", type: "files" });
+						} catch (error) {
+							SSEUtils.sendData({
+								error: (error as Error).message
+							});
+						}
+					}))
+				}
+				await Promise.all(tasks);
 			}
 			req.app.locals.queryOptions = undefined as unknown as QueryOptions;
 		} catch (error) {
@@ -280,3 +282,4 @@ export const apiV2Controller = {
 		}
 	}
 }
+
