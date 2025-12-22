@@ -9,6 +9,26 @@ declare global {
 			data: Record<string, string>[];
 			dataFields: string[];
 			gridFsIdField: string;
+			queryOptions: QueryOptions;
 		}
 	}
+}
+
+export interface QueryOptions {
+	collection: string;
+	includeData: boolean;
+	dataPrefixOnS3: string;
+	filter: Record<string, any>;
+	options: {} | {
+		sort?: Record<string, -1 | 1>;
+		limit?: number;
+		projection?: Record<string, 1 | -1>;
+	};
+	gridfsOptions: {
+		gridFsPrefixOnS3: string;
+		collectionField: string;
+		matchField: string;
+		prefix?: string;
+		suffix?: string;
+	} | {};
 }

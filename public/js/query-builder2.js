@@ -4,7 +4,7 @@ let editor = null;
 let mongoOptions = {};
 let gridfsOptions = {};
 
-const mongoOperators = ["$eq", "$ne", "$gt", "$gte", "$lt", "$lte", "$in", "$nin", "$regex"];
+const mongoOperators = ["$eq", "$ne", "$gt", "$gte", "$lt", "$lte", "$in", "$nin", "$regex", "$exists"];
 
 window.initMonaco = function () {
 	editor = monaco.editor.create(
@@ -29,6 +29,7 @@ async function loadFields(collection) {
 		renderRules();
 		renderSortFields();
 		renderProjectionFields();
+		renderGrifsMatchFields();
 	} catch (err) {
 		console.error("Errore caricando campi:", err);
 	}
@@ -61,10 +62,6 @@ async function loadCollection() {
 	}
 }
 
-window.addEventListener("DOMContentLoaded", () => {
-	loadCollection();
-});
-
 function addRule() {
 	const id = Date.now();
 	rules.push({ id, field: "", operator: "$eq", value: "", logic: "AND" });
@@ -85,11 +82,12 @@ function updateRule(id, key, value) {
 
 function renderRules() {
 	const container = document.getElementById("rules");
+	rules.length !== 0 ? container?.removeAttribute("hidden") : container?.setAttribute("hidden", true);
 	container.innerHTML = "";
 
-	rules.forEach(rule => {
+	rules.forEach((rule, index) => {
 		const row = document.createElement("div");
-		row.className = "row g-2 mb-2 align-items-center";
+		row.className = `row g-1 ${index !== 0 && index !== rules.length - 1 ? "my-1" : index === 0 ? "mb-1" : "mt-1"}`;
 
 		const fieldSelect = document.createElement("select");
 		fieldSelect.className = "form-select";
@@ -140,11 +138,11 @@ function renderRules() {
 		removeBtn.textContent = "X";
 		removeBtn.onclick = () => removeRule(rule.id);
 
-		const colField = document.createElement("div"); colField.className = "col-3"; colField.appendChild(fieldSelect);
+		const colField = document.createElement("div"); colField.className = "col-4"; colField.appendChild(fieldSelect);
 		const colOperator = document.createElement("div"); colOperator.className = "col-2"; colOperator.appendChild(operatorSelect);
 		const colValue = document.createElement("div"); colValue.className = "col-3"; colValue.appendChild(valueInput);
 		const colLogic = document.createElement("div"); colLogic.className = "col-2"; colLogic.appendChild(logicSelect);
-		const colRemove = document.createElement("div"); colRemove.className = "col-2"; colRemove.appendChild(removeBtn);
+		const colRemove = document.createElement("div"); colRemove.className = "col-auto"; colRemove.appendChild(removeBtn);
 
 		row.appendChild(colField);
 		row.appendChild(colOperator);
@@ -185,30 +183,70 @@ function buildCondition(r) {
 function buildMongoQuery() {
 	if (rules.length === 0) return {};
 
-	let query = {};
-	let orGroup = [];
+	const andMap = {};
+	const orConditions = [];
 
-	rules.forEach((r, i) => {
+	rules.forEach(r => {
 		if (!r.field) return;
-		const condition = buildCondition(r);
 
-		if (i === 0) {
-			query = condition;
+		const value = parseValue(r.value);
+
+		if (r.logic === "OR") {
+			orConditions.push(buildCondition(r));
+			return;
+		}
+
+		if (!andMap[r.field]) {
+			andMap[r.field] = {};
+		}
+
+		if (r.operator === "$eq") {
+			andMap[r.field] = value;
+			return;
+		}
+
+		if (r.operator === "$in" || r.operator === "$nin") {
+			const arr = r.value.split(",").map(v => parseValue(v.trim()));
+			andMap[r.field][r.operator] = arr;
+			return;
+		}
+
+		andMap[r.field][r.operator] = value;
+	});
+
+	const andConditions = [];
+
+	Object.entries(andMap).forEach(([field, condition]) => {
+		if (
+			typeof condition === "object" &&
+			!Array.isArray(condition)
+		) {
+			andConditions.push({ [field]: condition });
 		} else {
-			if (r.logic === "AND") {
-				query = { ...query, ...condition };
-			} else if (r.logic === "OR") {
-				orGroup.push(condition);
-			}
+			andConditions.push({ [field]: condition });
 		}
 	});
 
-	if (orGroup.length > 0) {
-		query = { $or: [query, ...orGroup] };
+	if (andConditions.length && orConditions.length) {
+		return {
+			$and: [
+				...andConditions,
+				{ $or: orConditions }
+			]
+		};
 	}
 
-	return query;
+	if (orConditions.length) {
+		return { $or: orConditions };
+	}
+
+	if (andConditions.length === 1) {
+		return andConditions[0];
+	}
+
+	return { $and: andConditions };
 }
+
 
 function updateQueryPreview() {
 	const filter = buildMongoQuery();
@@ -247,7 +285,7 @@ function renderProjectionFields() {
 
 	availableFields.forEach(f => {
 		const col = document.createElement("div");
-		col.className = "col-3";
+		col.className = "col-4";
 
 		const label = document.createElement("label");
 		label.className = "form-check-label";
@@ -300,13 +338,14 @@ function updateMongoOptions() {
 
 function getOptions() {
 	const options = {
-		mongoOptions: mongoOptions,
+		...(Reflect.ownKeys(mongoOptions).length > 0 && { options: mongoOptions}),
 		gridfsOptions: {}
 	};
 
 	if (document.getElementById("gridfsSwitch").checked) {
 		options.gridfsOptions = {
-			field: document.getElementById("gridfsField").value,
+			gridFsPrefixOnS3: document.getElementById("gridfs-prefix-val").value,
+			collectionField: document.getElementById("gridfsField").value,
 			prefix: document.getElementById("gridfsPrefix").value,
 			suffix: document.getElementById("gridfsSuffix").value,
 			matchField: document.getElementById("gridfsMatchField").value
@@ -314,6 +353,15 @@ function getOptions() {
 	}
 
 	return options;
+}
+
+function toggleSpinner() {
+	const spinner = document.getElementById("loadingOverlay");
+	if (spinner?.classList.contains("d-none")) {
+		spinner?.classList.remove("d-none");
+	} else {
+		spinner?.classList.add("d-none");
+	}
 }
 
 document.getElementById("limit").onchange = updateMongoOptions;
@@ -326,31 +374,64 @@ btnExec.addEventListener("click", async (e) => {
 	const gridSwitch = document.getElementById("gridfsSwitch");
 	const gridfsField = document.getElementById("gridfsField");
 	const gridfsMatchField = document.getElementById("gridfsMatchField");
+	const collection = document.getElementById("collection");
+	const dataPrefixVal = document.getElementById("data-prefix-val");
+	const includeData = document.getElementById("includeData");
+
 	const errors = [];
 	if (!gridfsField.value) {
-		errors.push("Nome campo per il match con GridFS");
+		gridSwitch.checked && errors.push("Nome campo per il match con GridFS");
 	}
 	if (!gridfsMatchField) {
-		errors.push("Campo per il match della collection GridFS");
+		gridSwitch.checked && errors.push("Campo per il match della collection GridFS");
 	}
-	if (gridSwitch.checked && errors.length > 0) {
+	if (!collection.value) {
+		errors.push("Collection");
+	}
+	if (errors.length > 0) {
 		alert(`${errors.length > 1 ? "I Campi\n" : "Il campo\n"}${errors.join("\n")}${errors.length > 1 ? "\nsono obbligatori" : "\nè obbligatorio"}`);
 		return;
 	}
 	btnExec.disabled = true;
 	aS3.disabled = true;
 	loading?.removeAttribute("hidden");
-	const queryObj = editor ? JSON.parse(editor.getValue()) : {};
+	let queryObj = editor ? JSON.parse(editor.getValue()) : {};
 	const options = getOptions();
-	queryObj.gridFS = options;
+	queryObj = {
+		...queryObj,
+		...options,
+		collection: collection.value,
+		includeData: includeData.checked,
+		dataPrefixOnS3: dataPrefixVal.value,
+	};
 	const query = encodeURIComponent(JSON.stringify(queryObj));
+	console.log(queryObj)
 
-	await fetch(`/api/v1/collection/get/${query}`);
-	btnExec.disabled = false;
-	aS3.disabled = false;
-	loading?.setAttribute("hidden", true);
-	window.location.href = "/results";
+	try {
+		const response = await fetch(`/api/v2/collections/get/${query}`);
+		if (!response.ok) {
+			throw Error((await response.json()).message);
+		}
+		window.location.href = "/v2/visualize";
+	} catch (error) {
+		alert(error.message);
+	} finally {
+		btnExec.disabled = false;
+		aS3.disabled = false;
+		loading?.setAttribute("hidden", true);
+
+	}
 });
+
+function renderGrifsMatchFields() {
+	let select = document.getElementById("gridfsField");
+	availableFields.forEach(coll => {
+		const opt = document.createElement("option");
+		opt.setAttribute("value", coll);
+		opt.innerHTML = coll;
+		select?.appendChild(opt);
+	});
+}
 
 document.getElementById("gridfsSwitch").addEventListener("change", function () {
 	const gridfsFields = document.getElementById("gridfsFields");
@@ -368,4 +449,20 @@ document.getElementById("mongoOptionsSwitch").addEventListener("change", functio
 	} else {
 		gridfsFields.style.display = "none";
 	}
+});
+
+document.getElementById("includeData").addEventListener("change", function () {
+	const div = document.getElementById("data-prefix");
+	if (this.checked) {
+		div?.removeAttribute("hidden");
+	} else {
+		div?.setAttribute("hidden", true);
+		document.getElementById("data-prefix-val").value = "";
+	}
+});
+
+window.addEventListener("DOMContentLoaded", async () => {
+	toggleSpinner();
+	await loadCollection();
+	toggleSpinner();
 });

@@ -1,0 +1,157 @@
+<%- include('partials/header') %>
+
+<h1 class="mb-4">Visualize</h1>
+<div class="row g-3">
+    <div class="col-auto">
+        <button id="count" class="btn btn-primary" onclick="getCount()">Count data</button>
+    </div>
+    <div class="col-auto">
+        <button id="upload" class="btn btn-success" onclick="startUpload()">Upload sequentially</button>
+    </div>
+    <div class="col-auto">
+        <a id="s3" href="/v2/resultsS3" class="btn btn-warning">AWS S3 Bucket</a>
+    </div>
+    <div class="col-auto">
+        <a id="nq" href="/v2" class="btn btn-primary">Nuova query</a>
+    </div>
+    <div id="data-count" class="col-12"></div>
+    <div class="col-12" hidden>
+        <div class="row g-3">
+            <div class="col-4">
+                <span class="fw-bold">Data: </span>
+            </div>
+            <div class="col-6 progress">
+                <div id="progress-data" class="progress-bar" role="progressbar" style="width: 0%" aria-valuemin="0" aria-valuemax="100">
+                    0%
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12" hidden>
+        <div class="row g-3">
+            <div class="col-4">
+                <span class="fw-bold">File: </span>
+            </div>
+            <div class="col-6 progress">
+                <div id="progress-gridfs" class="progress-bar" role="progressbar" style="width: 0%" aria-valuemin="0"
+                    aria-valuemax="100">
+                    0%
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="completed" class="alert alert-success d-none fw-bold" role="alert">
+        COMPLETATO
+    </div>
+</div>
+<script>
+    let evtSource,
+    countData = -1,
+    countGridFS = -1;
+    window.addEventListener('beforeunload', e => {
+        !!evtSource && evtSource.close();
+    });
+    const dataPrefixDiv = document.getElementById("data-prefix");
+    const gridFsPrefixDiv = document.getElementById("gridfs-prefix");
+    const dataPrefixVal = document.getElementById("data-prefix-val");
+    const gridFsPrefixVal = document.getElementById("gridfs-prefix-val");
+    const s3Btn = document.getElementById("s3");
+    const countBtn = document.getElementById("count");
+    const uploadBtn = document.getElementById("upload");
+    const countDiv = document.getElementById("data-count");
+    const uploadDiv = document.getElementById("data-upload");
+    const progressData = document.getElementById("progress-data");
+    const progressGridFS = document.getElementById("progress-gridfs");
+    const completed = document.getElementById("completed");
+
+    function toggleSpinner() {
+        const spinner = document.getElementById("loadingOverlay");
+        if (spinner?.classList.contains("d-none")) {
+            spinner?.classList.remove("d-none");
+        } else {
+            spinner?.classList.add("d-none");
+        }
+    }
+
+    async function getCount() {
+        toggleSpinner();
+        countDiv.innerHTML = "";
+        try {
+            s3.disabled = true;
+            countBtn.disabled = true;
+            const response = await fetch(`/api/v2/collections/count`);
+            if(!response.ok) {
+                throw Error(response.statusText);
+            }
+            const data = await response.json();
+            if(!data) {
+                throw Error("Data not found.");
+            }
+            Reflect.ownKeys(data).forEach((key, index) => {
+                key === "data" ? (countData = data[key] !== -1 ? data[key] : 0) : (countGridFS = data[key] !== -1 ? data[key] : 0);
+                const span = document.createElement("span");
+                const fieldset = document.createElement("span");
+                span.innerHTML=`<span class="fw-bold pe-2">${key === "data" ? "Data" : "File"}:</span>${data[key]}`;
+                countDiv.append(span);
+                index === 0 && countDiv.append(document.createElement("br"));
+            });
+        } catch (error) {
+            alert(error.message);
+            return;
+        } finally {
+            s3.disabled = false;
+            countBtn.disabled = false;
+            toggleSpinner();
+        }
+    }
+
+    async function startUpload() {
+        progressData.parentElement.parentElement.parentElement.setAttribute("hidden", true);
+        progressGridFS.parentElement.parentElement.parentElement.setAttribute("hidden", true);
+        s3.disabled = true;
+        countBtn.disabled = true;
+        uploadBtn.disabled = true;
+        let partialData = 0,
+        partialGridFS = 0;
+        evtSource = new EventSource(`/api/v2/sse/upload-file/${countData}/${countGridFS}`);
+
+        evtSource.onmessage = e => {
+            const { id, loaded, total, event, type, totalData, totalGridFS, error } = JSON.parse(e.data);
+            let bar, percent;
+            if(event) {
+                if(event === "complete") {
+                    evtSource.close();
+                    s3.disabled = false;
+                    completed.classList.remove("d-none");
+                    return;
+                } else if(event === "count") {
+                    countData = totalData;
+                    countGridFS = totalGridFS;
+                } else if(event === "data") {
+                    if(type === "data") {
+                        bar= progressData;
+                        partialData+=1;
+                        percent = (partialData/countData)*100;
+                    } else {
+                        bar = progressGridFS;
+                        partialGridFS += 1;
+                        percent = (partialGridFS / countGridFS) * 100;
+                    }
+                }
+            }
+            if(error) {
+                percent = 100;
+            }
+
+            if (!bar) return;
+            bar.parentElement.parentElement.parentElement.removeAttribute("hidden");
+            bar.style.width = percent + "%";
+            bar.textContent = error ? "ERROR" : (percent + "%");
+
+            if (percent === 100) {
+                bar.classList.add(`bg-${error ? "danger" : "success"}`);
+            }
+        };
+    }
+</script>
+<%- include('partials/footer') %>

@@ -1,0 +1,282 @@
+import { DeleteObjectsCommand, GetObjectCommand, ListObjectsCommand } from "@aws-sdk/client-s3";
+import { NextFunction, Request, Response } from "express";
+import { s3Utils } from "../../../utils/s3.js";
+import { Upload } from "@aws-sdk/lib-storage";
+import { SSEUtils } from "../../../utils/sse.js";
+import { QueryOptions } from "../../../model/index.js";
+import { PassThrough, Transform } from "stream";
+import pLimit from "p-limit";
+import { GridFSBucket, ObjectId } from "mongodb";
+import { pipeline } from "stream/promises";
+
+export const apiV2Controller = {
+	getCollections: async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!req.app.locals.dbClient) {
+				res.status(500).send({ message: "No Mongo Client initialized." })
+			} else {
+				const db = req.app.locals.dbClient.db(process.env.MONGO_DB_NAME!);
+				const data = await db.collections();
+				if (!data) {
+					res.status(400).send({ message: "DB empty" });
+				} else {
+					res.status(200).json(data.map(el => el.collectionName).sort());
+				}
+			}
+		} catch (error) {
+			next(error);
+		}
+	},
+	getFields: async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const { collection } = req.params;
+			if (!req.app.locals.dbClient) {
+				res.status(500).send({ message: "No Mongo Client initialized." })
+			} else if (!collection) {
+				res.status(400).send({ message: "Collection param missing." })
+			} else {
+				const db = req.app.locals.dbClient.db(process.env.MONGO_DB_NAME!);
+				const data = await db.collection(collection).find().sort({_id: -1}).limit(5).toArray();
+				if (!data || data.length === 0) {
+					res.status(400).send({ message: "Collection empty" });
+				} else {
+					const keys = new Set();
+					data.forEach(el => Reflect.ownKeys(el).forEach(key => keys.add(key)));
+					res.status(200).json(Array.from(keys).filter(el => el !== "_class"));
+				}
+			}
+		} catch (error) {
+			next(error);
+		}
+	},
+	getData: async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!req.app.locals.dbClient) {
+				res.status(500).send({message: "No Mongo Client initialized."})
+			} else {
+				const { query } = req.params;
+				const queryParsed: QueryOptions = JSON.parse(query);
+				if (Reflect.ownKeys(queryParsed.gridfsOptions).length === 0 && !queryParsed.includeData) {
+					res.status(400).send({ message: "No data selected to upload on S3." });
+					return;
+				}
+				if ("collectionField" in queryParsed.gridfsOptions && "projection" in queryParsed.options && queryParsed.options.projection) {
+					const val = queryParsed.options.projection[queryParsed.gridfsOptions.collectionField];
+					if (queryParsed.gridfsOptions.collectionField !== "_id" && val !== 1) {
+						res.status(400).send({ message: "GridFS collection field missing in projection query." });
+						return;
+					}
+				}
+				req.app.locals.queryOptions = queryParsed;
+				res.status(200).send();
+			}
+		} catch (error) {
+			next(error);
+		}
+	},
+	countData: async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!req.app.locals.dbClient) {
+				res.status(500).send({ message: "No Mongo Client initialized." });
+				return;
+			}
+			if (!req.app.locals.queryOptions) {
+				res.status(500).send({ message: "No query options provided." });
+				return;
+			}
+			const db = req.app.locals.dbClient.db(process.env.MONGO_DB_NAME!);
+			const { collection, includeData, filter, gridfsOptions, options } = req.app.locals.queryOptions;
+			const countData = await db.collection(collection).countDocuments(filter, options);
+			const result: {data?: number, files?: number} = {data: -1, files: -1};
+			if (!("collectionField" in gridfsOptions)) {
+				result.data = countData;
+			} else {
+				const data = await db.collection(collection).find(filter, options).toArray();
+				const files = await db.collection(process.env.MONGO_DB_GRIDFS_BUCKET + ".files").countDocuments({
+					[gridfsOptions.matchField]: { $in: data.map(el => `${gridfsOptions.prefix}${el[gridfsOptions.collectionField]}${gridfsOptions.suffix}`) }
+				});
+				result.files = files;
+				includeData && (result.data = countData);
+			}
+			res.status(200).json(result);
+		} catch (error) {
+			next(error);
+		}
+	},
+	sseUploadFile: async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!req.app.locals.dbClient) {
+				res.status(500).send({ message: "No Mongo Client initialized." })
+			} else {
+				SSEUtils.initSSE(req, res);
+				let data = Number(req.params.data);
+				let files = Number(req.params.files);
+				if (data === -1 && files === -1) {
+					const response = await fetch(`/api/v2/collections/count`);
+					if (!response.ok) {
+						next(Error(response.statusText));
+						return;
+					}
+					const result = await response.json();
+					data = result.data;
+					files = result.files;
+				}
+				SSEUtils.sendData({ event: "count", totalData: data, totalGridFS: files });
+				const { collection, includeData, dataPrefixOnS3, filter, gridfsOptions, options } = req.app.locals.queryOptions;
+				const db = req.app.locals.dbClient.db(process.env.MONGO_DB_NAME!);
+				const stream = db.collection(collection).find(filter, {...options, batchSize: 1000}).stream();
+				const UPLOAD_GRIDFS_FILE = "collectionField" in gridfsOptions;
+				let gridFsBucket, limit;
+				if (UPLOAD_GRIDFS_FILE) {
+					limit = pLimit(5);
+					gridFsBucket = new GridFSBucket(db, { bucketName: process.env.MONGO_DB_GRIDFS_BUCKET! });
+				}
+				const transformToJsonl = new Transform({
+					objectMode: true,
+					async transform(doc, _, callback) {
+						try {
+							if (UPLOAD_GRIDFS_FILE) {
+								await limit!(async () => {
+									try {
+										let valueMatchFile, gridFsStream, mimeStream;
+										if (gridfsOptions.matchField === "_id") {
+											valueMatchFile = new ObjectId((gridfsOptions.prefix || "") + doc[gridfsOptions.collectionField] + (gridfsOptions.suffix || ""));
+											gridFsStream = gridFsBucket!.openDownloadStream(valueMatchFile);
+											mimeStream = gridFsBucket!.openDownloadStream(valueMatchFile);
+										} else {
+											valueMatchFile = (gridfsOptions.prefix || "") + doc[gridfsOptions.collectionField] + (gridfsOptions.suffix || "");
+											gridFsStream = gridFsBucket!.openDownloadStreamByName(valueMatchFile);
+											mimeStream = gridFsBucket!.openDownloadStreamByName(valueMatchFile);
+										}
+										const contentType = await s3Utils.detectContentType(mimeStream);
+										const uploadFile = new Upload({
+											client: req.app.locals.s3Client!,
+											params: {
+												Bucket: process.env.AWS_BUCKET_NAME!,
+												Key: `${gridfsOptions.gridFsPrefixOnS3 ? gridfsOptions.gridFsPrefixOnS3 + "/" : ""}${valueMatchFile}${contentType.indexOf("stream") === -1 ? "." + contentType.split("/")[1] : ""}`,
+												Body: gridFsStream,
+												ContentType: contentType
+											}
+										});
+										await uploadFile.done();
+										SSEUtils.sendData({ event: "data", type: "files" });
+									} catch (error) {
+										SSEUtils.sendData({
+											error: (error as Error).message
+										});
+									}
+								});
+							}
+							SSEUtils.sendData({ event: "data", type: "data" });
+							callback(null, JSON.stringify(doc) + "\n");
+						} catch (error) {
+							callback(error as Error);
+						}
+					},
+				});
+				const passThrough = new PassThrough();
+				const upload = new Upload({
+					client: req.app.locals.s3Client!,
+					params: {
+						Bucket: process.env.AWS_BUCKET_NAME!,
+						Key: `${dataPrefixOnS3 ? dataPrefixOnS3 + "/" : ""}${collection}.jsonl`,
+						Body: passThrough,
+						ContentType: "application/json"
+					}
+				});
+				await pipeline(
+					stream,
+					transformToJsonl,
+					passThrough
+				);
+				await upload.done();
+			}
+			req.app.locals.queryOptions = undefined as unknown as QueryOptions;
+		} catch (error) {
+			SSEUtils.sendData({
+				error: (error as Error).message
+			});
+		} finally {
+			SSEUtils.closeEvent();
+		}
+	},
+	readBucketContent: async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!req.app.locals.s3Client) {
+				res.status(500).send({ message: "No AWS S3 Client initialized." })
+			} else {
+				const { prefix } = req.params;
+				const command = new ListObjectsCommand({ Bucket: process.env.AWS_BUCKET_NAME!, Prefix: prefix });
+				const result = await req.app.locals.s3Client.send(command);
+				const list = (result.Contents || []).map(el => ({ fileName: el.Key, size: el.Size, tag: el.ETag, storage: el.StorageClass, owner: el.Owner }));
+				res.status(200).json(list);
+			}
+		} catch (error) {
+			next(error);
+		}
+	},
+	deleteBucketFile: async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!req.app.locals.s3Client) {
+				res.status(500).send({ message: "No AWS S3 Client initialized." })
+			} else {
+				const { filename, prefix } = req.params;
+				let command;
+				if (prefix) {
+					const commandList = new ListObjectsCommand({ Bucket: process.env.AWS_BUCKET_NAME!, Prefix: prefix });
+					const result = await req.app.locals.s3Client.send(commandList);
+					if (!result.Contents || result.Contents.length === 0) {
+						res.status(404).json({ message: "No files found with prefix " + prefix });
+						return;
+					}
+					command = new DeleteObjectsCommand({
+						Bucket: process.env.AWS_BUCKET_NAME!,
+						Delete: {
+							Objects: (result.Contents || []).map(el => ({ Key: el.Key }))
+						}
+					});
+				} else {
+					command = new DeleteObjectsCommand({
+						Bucket: process.env.AWS_BUCKET_NAME!,
+						Delete: {
+							Objects: [{ Key: filename as string }]
+						}
+					});
+				}
+				const result = await req.app.locals.s3Client.send(command);
+				if ((result.Errors || []).length > 0) {
+					res.status(400).json((result.Errors || []).map(el => `${el.Key}: ${el.Message}`));
+				} else {
+					res.status(200).json({ message: (result.Deleted || [{Key: "0 files "}]).map(el => el.Key).join(", ") + " deleted successfully" });
+				}
+			}
+		} catch (error) {
+			next(error);
+		}
+	},
+	downloadBucketFile: async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!req.app.locals.s3Client) {
+				res.status(500).send({ message: "No AWS S3 Client initialized." })
+			} else {
+				const { filename } = req.params;
+				const command = new GetObjectCommand({
+					Bucket: process.env.AWS_BUCKET_NAME!,
+					Key: filename
+				});
+				const result = await req.app.locals.s3Client.send(command);
+				if (!result.Body) {
+					res.status(400).json({message: "File " + filename + " not found."});
+				} else {
+					res.set({
+						"Content-type": result.ContentType || "application/octet-stream",
+						"Content-disposition": `attachment; filename=${filename}`
+					});
+					res.status(200).send(await result.Body?.transformToByteArray());
+				}
+			}
+		} catch (error) {
+			next(error);
+		}
+	}
+}
