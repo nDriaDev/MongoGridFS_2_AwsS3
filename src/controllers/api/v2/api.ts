@@ -129,29 +129,34 @@ export const apiV2Controller = {
 				objectMode: true,
 				async transform(doc, _, callback) {
 					try {
+						const docLine = JSON.stringify(doc) + "\n";
 						if (UPLOAD_GRIDFS_FILE) {
-							gridFsMatchValues.push((gridfsOptions.prefix || "") + doc[gridfsOptions.collectionField] + (gridfsOptions.suffix || ""));
+							const matchValue = (gridfsOptions.prefix || "") + doc[gridfsOptions.collectionField] + (gridfsOptions.suffix || "");
+							gridFsMatchValues.push(matchValue);
 						}
 						if (includeData) {
-							SSEUtils.sendData({ event: "data", type: "data" });
-							callback(null, JSON.stringify(doc) + "\n");
+							callback(null, docLine);
 						} else {
 							callback(null, "");
 						}
 					} catch (error) {
+						SSEUtils.sendData({ error: (error as Error).message });
 						callback(error as Error);
 					}
 				},
 			});
 			stream.on("error", err => {
-				SSEUtils.sendData({ error: err ? err : "Errore durante lo stream."});
-			})
+				SSEUtils.sendData({ error: err ? err : "Errore durante lo stream." });
+			});
+			passThrough.on("data", () => {
+				SSEUtils.sendData({ event: "data", type: "data" });
+			});
 			passThrough.on("error", err => {
 				SSEUtils.sendData({error: err ? err : "Errore durante l'upload."});
-			})
+			});
 			transformToJsonl.on("error", err => {
 				SSEUtils.sendData({error: err ? err : "Errore durante la creazione del jsonl."});
-			})
+			});
 			let upload;
 			if (includeData && data > 0) {
 				upload = new Upload({
@@ -162,6 +167,9 @@ export const apiV2Controller = {
 						Body: passThrough,
 						ContentType: "application/json"
 					}
+				});
+				upload.on("httpUploadProgress", progress => {
+					console.log("progress upload", progress.Key, progress.loaded, progress.part, progress.total);
 				});
 			}
 			await pipeline(
@@ -204,7 +212,7 @@ export const apiV2Controller = {
 								error: (error as Error).message
 							});
 						}
-					}))
+					}));
 				}
 				await Promise.all(tasks);
 			}
