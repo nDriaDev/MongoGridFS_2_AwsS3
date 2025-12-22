@@ -141,6 +141,7 @@ export const apiV2Controller = {
 						} else {
 							callback(null, "");
 						}
+						SSEUtils.sendData({ event: "data", type: "data" });
 					} catch (error) {
 						SSEUtils.sendData({ error: (error as Error).message });
 						callback(error as Error);
@@ -158,9 +159,6 @@ export const apiV2Controller = {
 			});
 			transformToJsonl.on("error", err => {
 				SSEUtils.sendData({ error: err ? err : "Errore durante la creazione del jsonl." });
-			});
-			passThrough.on("data", () => {
-				SSEUtils.sendData({ event: "data", type: "data" });
 			});
 			passThrough.on("error", err => {
 				SSEUtils.sendData({ error: err ? err : "Errore durante l'upload." });
