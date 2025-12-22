@@ -118,6 +118,8 @@ export const apiV2Controller = {
 			}
 			SSEUtils.sendData({ event: "count", totalData: data, totalGridFS: files });
 
+			//@ts-ignore
+			const { promise, resolve, reject } = Promise.withResolvers();
 			const UPLOAD_GRIDFS_FILE = "collectionField" in gridfsOptions;
 			const gridFsMatchValues: string[] = [];
 
@@ -145,20 +147,34 @@ export const apiV2Controller = {
 					}
 				},
 			});
+			let upload: Upload;
+			const pipes = pipeline(
+				stream,
+				transformToJsonl,
+				passThrough
+			);
 			stream.on("error", err => {
 				SSEUtils.sendData({ error: err ? err : "Errore durante lo stream." });
+			});
+			transformToJsonl.on("error", err => {
+				SSEUtils.sendData({ error: err ? err : "Errore durante la creazione del jsonl." });
 			});
 			passThrough.on("data", () => {
 				SSEUtils.sendData({ event: "data", type: "data" });
 			});
 			passThrough.on("error", err => {
-				SSEUtils.sendData({error: err ? err : "Errore durante l'upload."});
+				SSEUtils.sendData({ error: err ? err : "Errore durante l'upload." });
 			});
-			transformToJsonl.on("error", err => {
-				SSEUtils.sendData({error: err ? err : "Errore durante la creazione del jsonl."});
+			passThrough.on("finish", async () => {
+				console.log("stream data finish");
+				if (!!upload) {
+					await upload.done();
+					console.log("upload finish");
+					resolve();
+				}
 			});
-			let upload;
 			if (includeData && data > 0) {
+				console.log("creating upload...");
 				upload = new Upload({
 					client: req.app.locals.s3Client!,
 					params: {
@@ -172,12 +188,8 @@ export const apiV2Controller = {
 					console.log("progress upload", progress.Key, progress.loaded, progress.part, progress.total);
 				});
 			}
-			await pipeline(
-				stream,
-				transformToJsonl,
-				passThrough
-			);
-			upload && await upload.done();
+			await pipes;
+			await promise;
 			if (UPLOAD_GRIDFS_FILE && data > 0 && files > 0) {
 				const limit = pLimit(5);
 				const gridFsBucket = new GridFSBucket(db, { bucketName: gridfsOptions.gridFsCollection });
