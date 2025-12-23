@@ -108,7 +108,7 @@ export const apiV2Controller = {
 			const { collection, includeData, dataPrefixOnS3, use, aggregation, filter, gridfsOptions, options } = req.app.locals.queryOptions;
 			let data = Number(req.params.data);
 			let files = Number(req.params.files);
-			if (data !== -1 && files === -1) {
+			if (data === -1 && files === -1) {
 				SSEUtils.sendData({ event: "no-count" });
 			} else {
 				SSEUtils.sendData({ event: "count", totalData: data, totalGridFS: files });
