@@ -105,7 +105,7 @@
                 tr.innerHTML = `
           <td>${item.fileName}</td>
           <td>${formatSize(item.size)}</td>
-          <td>${!!item.lastModified ? new Date(item.lastModified).toLocaleDateString() : "N.D."}</td>
+          <td>${!!item.lastModified ? new Date(item.lastModified).toLocaleString() : "N.D."}</td>
           <td>
             <div class="d-flex gap-1">
                 <button class="btn btn-sm btn-primary" onclick="downloadFile(${index},'${item.fileName}')">Scarica</button>

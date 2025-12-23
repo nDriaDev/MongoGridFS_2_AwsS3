@@ -483,13 +483,38 @@ document.getElementById("mongoOptionsSwitch").addEventListener("change", functio
 
 document.getElementById("includeData").addEventListener("change", function () {
 	const div = document.getElementById("data-prefix");
+	const div2 = document.getElementById("data-add-date-prefix");
 	if (this.checked) {
 		div?.removeAttribute("hidden");
+		div2?.removeAttribute("hidden");
 	} else {
 		div?.setAttribute("hidden", true);
+		div2?.setAttribute("hidden", true);
 		document.getElementById("data-prefix-val").value = "";
 	}
 });
+
+document.getElementById("data-add-date-prefix").onclick = e => {
+	const today = new Date().toLocaleDateString().replaceAll("/", "");
+	let val = document.getElementById("data-prefix-val");
+	val.value = val.value.indexOf(today) !== -1
+		? val.value.indexOf(today) === 0
+			? ""
+			: val.value.substring(0, val.value.indexOf(today))
+		: (val.value + today);
+	val = null;
+}
+
+document.getElementById("gridfs-add-date-prefix").onclick = e => {
+	const today = new Date().toLocaleDateString().replaceAll("/", "");
+	let val = document.getElementById("gridfs-prefix-val");
+	val.value = val.value.indexOf(today) !== -1
+		? val.value.indexOf(today) === 0
+			? ""
+			: val.value.substring(0, val.value.indexOf(today))
+		: (val.value + today);
+	val = null;
+}
 
 document.querySelectorAll('.stage-btn').forEach(btn => {
 	btn.addEventListener('click', () => {
