@@ -185,6 +185,7 @@ export const apiV2Controller = {
 					}
 					if (canContinue) {
 						includeData && SSEUtils.sendData({ event: "data", type: "data" });
+						callback();
 					} else {
 						dataPassThrough.once("drain", () => {
 							includeData && SSEUtils.sendData({ event: "data", type: "data" });
