@@ -211,6 +211,10 @@
                 if(!res.ok) {
                     throw Error((await res.json()).message);
                 }
+                const data = await res.json();
+                if(data.errors.length > 0) {
+                    alert(["Non è stato possibile eliminare i file seguenti:", ...data.errors].join("\n"));
+                }
                 delBtn.setAttribute("disabled", true);
                 toggleSpinner();
                 await loadResults(prefixInput.value.trim());

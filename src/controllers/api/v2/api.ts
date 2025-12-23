@@ -1,4 +1,4 @@
-import { CompleteMultipartUploadCommandOutput, DeleteObjectsCommand, GetObjectCommand, ListObjectsCommand } from "@aws-sdk/client-s3";
+import { CompleteMultipartUploadCommandOutput, DeleteObjectsCommand, GetObjectCommand, ListObjectsCommand, ListObjectsV2Command, Owner } from "@aws-sdk/client-s3";
 import { NextFunction, Request, Response } from "express";
 import { s3Utils } from "../../../utils/s3.js";
 import { Upload } from "@aws-sdk/lib-storage";
@@ -181,10 +181,12 @@ export const apiV2Controller = {
 					}
 					if (canContinue) {
 						includeData && SSEUtils.sendData({ event: "data", type: "data" });
+						doc = null;
 						callback();
 					} else {
 						dataPassThrough.once("drain", () => {
 							includeData && SSEUtils.sendData({ event: "data", type: "data" });
+							doc = null;
 							callback();
 						});
 					}
@@ -227,9 +229,21 @@ export const apiV2Controller = {
 			} else {
 				let { prefix } = req.params;
 				prefix = decodeURIComponent(prefix);
-				const command = new ListObjectsCommand({ Bucket: process.env.AWS_BUCKET_NAME!, Prefix: prefix });
-				const result = await req.app.locals.s3Client.send(command);
-				const list = (result.Contents || []).map(el => ({ fileName: el.Key, size: el.Size, tag: el.ETag, lastModified: el.LastModified, storage: el.StorageClass, owner: el.Owner }));
+				const list: { fileName?: string, size?: number, tag?: string, lastModified?: Date, storage?: string, owner?: Owner }[] = [];
+				let isTruncated = true;
+				let nextToken: string | undefined;
+				while (isTruncated) {
+					// INFO la list ha un limite di 1000 elementi per richiesta
+					const command = new ListObjectsV2Command({
+						Bucket: process.env.AWS_BUCKET_NAME!,
+						Prefix: prefix,
+						ContinuationToken: nextToken
+					});
+					const result = await req.app.locals.s3Client.send(command);
+					(result.Contents || []).forEach(el => list.push({ fileName: el.Key, size: el.Size, tag: el.ETag, lastModified: el.LastModified, storage: el.StorageClass, owner: el.Owner }));
+					isTruncated = result.IsTruncated ?? false;
+					nextToken = result.NextContinuationToken;
+				}
 				res.status(200).json(list);
 			}
 		} catch (error) {
@@ -242,36 +256,65 @@ export const apiV2Controller = {
 				res.status(500).send({ message: "No AWS S3 Client initialized." })
 			} else {
 				let { filename, prefix } = req.params;
-				let command;
+				let commands = [];
 				if (prefix) {
 					prefix = decodeURIComponent(prefix);
-					const commandList = new ListObjectsCommand({ Bucket: process.env.AWS_BUCKET_NAME!, Prefix: prefix });
-					const result = await req.app.locals.s3Client.send(commandList);
-					if (!result.Contents || result.Contents.length === 0) {
-						res.status(404).json({ message: "No files found with prefix " + prefix });
-						return;
-					}
-					command = new DeleteObjectsCommand({
-						Bucket: process.env.AWS_BUCKET_NAME!,
-						Delete: {
-							Objects: (result.Contents || []).map(el => ({ Key: el.Key }))
+					const list: { Key: string }[] = [];
+					let isTruncated = true;
+					let nextToken: string | undefined;
+					while (isTruncated) {
+						// INFO la list ha un limite di 1000 elementi per richiesta
+						const command = new ListObjectsV2Command({
+							Bucket: process.env.AWS_BUCKET_NAME!,
+							Prefix: prefix,
+							ContinuationToken: nextToken
+						});
+						const result = await req.app.locals.s3Client.send(command);
+						if (!result.Contents || result.Contents.length === 0) {
+							res.status(404).json({ message: "No files found with prefix " + prefix });
+							return;
 						}
-					});
+						(result.Contents || []).forEach(el => el.Key && list.push({ Key: el.Key }));
+						isTruncated = result.IsTruncated ?? false;
+						nextToken = result.NextContinuationToken;
+					}
+					// INFO la delete ha un limite di 1000 cancellazioni per richiesta
+					for (let i = 0; i < list.length; i += 1000) {
+						const subList = list.slice(i, i + 1000);
+						commands.push(new DeleteObjectsCommand({
+							Bucket: process.env.AWS_BUCKET_NAME!,
+							Delete: {
+								Objects: subList
+							}
+						}));
+					}
 				} else {
 					filename = decodeURIComponent(filename);
-					command = new DeleteObjectsCommand({
+					if (!filename) {
+						res.status(400).json({ message: "Filename cannot be empty." });
+						return;
+					}
+					commands.push(new DeleteObjectsCommand({
 						Bucket: process.env.AWS_BUCKET_NAME!,
 						Delete: {
 							Objects: [{ Key: filename as string }]
 						}
-					});
+					}));
 				}
-				const result = await req.app.locals.s3Client.send(command);
-				if ((result.Errors || []).length > 0) {
-					res.status(400).json((result.Errors || []).map(el => `${el.Key}: ${el.Message}`));
-				} else {
-					res.status(200).json({ message: (result.Deleted || [{Key: "0 files "}]).map(el => el.Key).join(", ") + " deleted successfully" });
+				const errors: string[] = [];
+				let deleted = 0;
+				for (const command of commands) {
+					const result = await req.app.locals.s3Client.send(command);
+					(result.Errors || []).length > 0
+						? (result.Errors || []).forEach(el => {
+							errors.push(`${el.Key}: ${el.Message}`);
+						})
+						: (deleted += (result.Deleted || []).length);
 				}
+				res.status(200).json({
+					errors,
+					deleted
+				})
 			}
 		} catch (error) {
 			next(error);
