@@ -188,12 +188,12 @@
     }
 
     searchBtn.addEventListener("click", () => {
-        loadResults(prefixInput.value.trim());
+        loadResults(encodeURIComponent(prefixInput.value.trim()));
     });
 
     prefixInput.addEventListener("keydown", e => {
         if (e.key === "Enter") {
-            loadResults(prefixInput.value.trim());
+            loadResults(encodeURIComponent(prefixInput.value.trim()));
         }
     });
 
@@ -207,7 +207,7 @@
             }
             toggleSpinner();
             try {
-                const res = await fetch(`/api/v2/s3-del-many/${prefixInput.value.trim()}`);
+                const res = await fetch(`/api/v2/s3-del-many/${encodeURIComponent(prefixInput.value.trim())}`);
                 if(!res.ok) {
                     throw Error((await res.json()).message);
                 }
