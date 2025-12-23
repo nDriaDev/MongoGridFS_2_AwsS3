@@ -93,7 +93,7 @@ export const apiV2Controller = {
 			next(error);
 		}
 	},
-	sseUploadFile: async (req: Request, res: Response, next: NextFunction) => {
+	sseUploadFileWithStream: async (req: Request, res: Response, next: NextFunction) => {
 		try {
 			if (!req.app.locals.dbClient) {
 				res.status(500).send({ message: "No Mongo Client initialized." });
@@ -114,7 +114,6 @@ export const apiV2Controller = {
 				SSEUtils.sendData({ event: "count", totalData: data, totalGridFS: files });
 			}
 
-			//@ts-ignore
 			const UPLOAD_GRIDFS_FILE = "collectionField" in gridfsOptions;
 			let gridFsBucket;
 			if (UPLOAD_GRIDFS_FILE) {
@@ -214,6 +213,135 @@ export const apiV2Controller = {
 			await uploadData;
 			while (limit.activeCount > 0 || limit.pendingCount > 0) {
 				await new Promise<void>(resolve => setTimeout(resolve, 500));
+			}
+			req.app.locals.queryOptions = undefined as unknown as QueryOptions;
+		} catch (error) {
+			SSEUtils.sendData({
+				error: (error as Error).message
+			});
+		} finally {
+			SSEUtils.closeEvent();
+		}
+	},
+	sseUploadFileWithCursor: async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!req.app.locals.dbClient) {
+				res.status(500).send({ message: "No Mongo Client initialized." });
+				return;
+			}
+			if (!req.app.locals.queryOptions) {
+				res.status(500).send({ message: "No query options provided." });
+				return;
+			}
+			SSEUtils.initSSE(req, res);
+			const db = req.app.locals.dbClient.db(process.env.MONGO_DB_NAME!);
+			const { collection, includeData, dataPrefixOnS3, use, aggregation, filter, gridfsOptions, options } = req.app.locals.queryOptions;
+			let data = Number(req.params.data);
+			let files = Number(req.params.files);
+			if (data === -1 && files === -1) {
+				SSEUtils.sendData({ event: "no-count" });
+			} else {
+				SSEUtils.sendData({ event: "count", totalData: data, totalGridFS: files });
+			}
+
+			const UPLOAD_GRIDFS_FILE = "collectionField" in gridfsOptions;
+			let gridFsBucket;
+			if (UPLOAD_GRIDFS_FILE) {
+				gridFsBucket = new GridFSBucket(db, { bucketName: gridfsOptions.gridFsCollection });
+			}
+			const cursor = use === "query"
+				? db.collection(collection).find(filter, { ...options, batchSize: 1000 })
+				: db.collection(collection).aggregate(aggregation);
+			const CONCURRENCY_LIMIT = 10;
+			const limit = pLimit(CONCURRENCY_LIMIT);
+
+			const dataPassThrough = new PassThrough();
+			let uploadPromise;
+			if (includeData) {
+				const upload = new Upload({
+					client: req.app.locals.s3Client!,
+					params: {
+						Bucket: process.env.AWS_BUCKET_NAME!,
+						Key: `${dataPrefixOnS3 ? dataPrefixOnS3 + "/" : ""}${collection}${use === "query" ? "" : "_aggregated"}.jsonl`,
+						Body: dataPassThrough,
+						ContentType: 'application/x-jsonlines'
+					}
+				});
+				uploadPromise = upload.done();
+			} else {
+				uploadPromise = Promise.resolve();
+			}
+
+			for await (const doc of cursor) {
+				const line = JSON.stringify(doc) + "\n";
+				const matchGridFsStringValue: string | ObjectId = UPLOAD_GRIDFS_FILE
+					? (gridfsOptions.prefix || "") + doc[gridfsOptions.collectionField] + (gridfsOptions.suffix || "")
+					: "";
+				if (includeData) {
+					if (!dataPassThrough.write(line)) {
+						await new Promise<void>(res => dataPassThrough.once('drain', () => {
+							includeData && SSEUtils.sendData({ event: "data", type: "data" });
+							res();
+						}));
+					}
+				}
+				if (UPLOAD_GRIDFS_FILE) {
+					if (limit.activeCount >= CONCURRENCY_LIMIT) {
+						await new Promise<void>(res => {
+							const id = setInterval(() => {
+								if (limit.activeCount < CONCURRENCY_LIMIT) {
+									clearInterval(id);
+									res();
+								}
+							}, 50);
+						})
+					}
+					limit(async () => {
+						try {
+							const matchGridFsValue = gridfsOptions.matchField === "_id"
+								? new ObjectId(matchGridFsStringValue)
+								: matchGridFsStringValue;
+							const fileExists = await db.collection(gridfsOptions.gridFsCollection + ".files").findOne({ [gridfsOptions.matchField]: matchGridFsValue }, { projection: { _id: 1 } });
+							if (!fileExists) {
+								return;
+							}
+							let gridFsStream, mimeStream;
+							if (gridfsOptions.matchField === "_id") {
+								gridFsStream = gridFsBucket!.openDownloadStream(matchGridFsValue as ObjectId);
+								mimeStream = gridFsBucket!.openDownloadStream(matchGridFsValue as ObjectId);
+							} else {
+								gridFsStream = gridFsBucket!.openDownloadStreamByName(matchGridFsValue as string);
+								mimeStream = gridFsBucket!.openDownloadStreamByName(matchGridFsValue as string);
+							}
+							const contentType = await s3Utils.detectContentType(mimeStream);
+							const filePassThrough = new PassThrough();
+							const upload = new Upload({
+								client: req.app.locals.s3Client!,
+								params: {
+									Bucket: process.env.AWS_BUCKET_NAME!,
+									Key: `${gridfsOptions.gridFsPrefixOnS3 ? gridfsOptions.gridFsPrefixOnS3 + "/" : ""}${matchGridFsStringValue}${contentType.indexOf("stream") === -1 ? "." + contentType.split("/")[1] : ""}`,
+									Body: filePassThrough,
+									ContentType: contentType
+								}
+							});
+							await Promise.all([
+								pipeline(gridFsStream, filePassThrough),
+								upload.done()
+							]);
+							SSEUtils.sendData({ event: "data", type: "files" });
+						} catch (error) {
+							SSEUtils.sendData({
+								error: (error as Error).message
+							});
+						}
+					})
+				}
+			}
+			dataPassThrough.end();
+			await uploadPromise;
+
+			while (limit.activeCount > 0 || limit.pendingCount > 0) {
+				await new Promise<void>(r => setTimeout(r, 100));
 			}
 			req.app.locals.queryOptions = undefined as unknown as QueryOptions;
 		} catch (error) {

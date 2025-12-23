@@ -207,7 +207,60 @@ export const apiV2Routes = (router: Router) => {
 	*                 message:
 	*                   type: string
 	*/
-	router.get("/sse/upload-file/:data/:files", controllers.apiV2Controller.sseUploadFile);
+	router.get("/sse/upload-file/:data/:files", controllers.apiV2Controller.sseUploadFileWithStream);
+	/**
+	* @openapi
+	* /api/v2/sse/upload-file-cursor:
+	*   get:
+	*     summary: Esegue l'upload dei file trovati precedentemente con il servizio /collection/:query e invia i progressi tramite Server-Sent Events
+	*     tags:
+	*       - v2
+	*       - GridFS
+	*     parameters:
+	*       - name: data
+	*         in: path
+	*         required: true
+	*         schema:
+	*           type: string
+	*       - name: files
+	*         in: path
+	*         required: true
+	*         schema:
+	*           type: string
+	*     responses:
+	*       200:
+	*         description: Stream di eventi SSE
+	*         content:
+	*           text/event-stream:
+	*             schema:
+	*               type: object
+	*               properties:
+	*                 id:
+	*                   type: string
+	*                 type:
+	*                   type: string
+	*                 mimeType:
+	*                   type: string
+	*       400:
+	*         description: Richiesta non valida
+	*         content:
+	*           application/json:
+	*             schema:
+	*               type: object
+	*               properties:
+	*                 message:
+	*                   type: string
+	*       500:
+	*         description: Errore interno
+	*         content:
+	*           application/json:
+	*             schema:
+	*               type: object
+	*               properties:
+	*                 message:
+	*                   type: string
+	*/
+	router.get("/sse/upload-file-cursor/:data/:files", controllers.apiV2Controller.sseUploadFileWithCursor);
 	/**
 	* @openapi
 	* /api/v2/s3:

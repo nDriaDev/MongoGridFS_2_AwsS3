@@ -6,7 +6,10 @@
         <button id="count" class="btn btn-primary" onclick="getCount()">Count data</button>
     </div>
     <div class="col-auto">
-        <button id="upload" class="btn btn-success" onclick="startUpload()">Upload sequentially</button>
+        <button id="upload" class="btn btn-success" onclick="startUpload('stream')">Upload mongo stream</button>
+    </div>
+    <div class="col-auto">
+        <button id="upload-cursor" class="btn btn-outline-success" onclick="startUpload('cursor')">Upload mongo cursor</button>
     </div>
     <div class="col-auto">
         <a id="s3" href="/v2/resultsS3" class="btn btn-warning">AWS S3 Bucket</a>
@@ -77,6 +80,7 @@
     const s3Btn = document.getElementById("s3");
     const countBtn = document.getElementById("count");
     const uploadBtn = document.getElementById("upload");
+    const uploadCursorBtn = document.getElementById("upload-cursor");
     const countDiv = document.getElementById("data-count");
     const uploadDiv = document.getElementById("data-upload");
     const progressData = document.getElementById("progress-data");
@@ -124,7 +128,7 @@
         }
     }
 
-    async function startUpload() {
+    async function startUpload(type) {
         toggleSpinner(true);
         completed.classList.add("d-none");
         completed.innerHTML = "";
@@ -135,11 +139,12 @@
         s3.disabled = true;
         countBtn.disabled = true;
         uploadBtn.disabled = true;
+        uploadCursorBtn.disabled = true;
         let partialData = 0,
         partialGridFS = 0,
         showPercent = true,
         hasError = false;
-        evtSource = new EventSource(`/api/v2/sse/upload-file/${countData}/${countGridFS}`);
+        evtSource = new EventSource(`/api/v2/sse/upload-file${type === "cursor" ? "-cursor" : ""}/${countData}/${countGridFS}`);
 
         evtSource.onmessage = e => {
             const { id, loaded, total, event, type, totalData, totalGridFS, error } = JSON.parse(e.data);
