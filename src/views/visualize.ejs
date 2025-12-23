@@ -84,18 +84,16 @@
     const progressDataNoPercent = document.getElementById("progress-data-no-percent");
     const progressGridFSNoPercent = document.getElementById("progress-gridfs-no-percent");
     const completed = document.getElementById("completed");
+    const spinner = document.getElementById("loadingOverlay");
 
-    function toggleSpinner() {
-        const spinner = document.getElementById("loadingOverlay");
-        if (spinner?.classList.contains("d-none")) {
-            spinner?.classList.remove("d-none");
-        } else {
-            spinner?.classList.add("d-none");
-        }
+    function toggleSpinner(enable) {
+        enable
+            ? spinner?.classList.remove("d-none")
+            : spinner?.classList.add("d-none");
     }
 
     async function getCount() {
-        toggleSpinner();
+        toggleSpinner(true);
         countDiv.innerHTML = "";
         try {
             s3.disabled = true;
@@ -122,11 +120,12 @@
         } finally {
             s3.disabled = false;
             countBtn.disabled = false;
-            toggleSpinner();
+            toggleSpinner(false);
         }
     }
 
     async function startUpload() {
+        toggleSpinner(true);
         completed.classList.add("d-none");
         completed.innerHTML = "";
         progressData.parentElement.parentElement.parentElement.setAttribute("hidden", true);
@@ -147,6 +146,7 @@
             let bar, percent
             if(event) {
                 if(event === "complete") {
+                    toggleSpinner(false);
                     evtSource.close();
                     s3.disabled = false;
                     completed.classList.add(hasError ? "alert-danger" : "alert-success");
@@ -154,14 +154,14 @@
                     !hasError && (completed.innerHTML = "COMPLETATO");
                     return;
                 } else if(event === "count") {
-					toggleSpinner();
+					toggleSpinner(true);
                     countData = totalData;
                     countGridFS = totalGridFS;
                 } else if(event === "no-count") {
-					toggleSpinner();
+					toggleSpinner(true);
 					showPercent = false;
                 } else if(event === "data") {
-					toggleSpinner();
+					toggleSpinner(false);
 					if (type === "data") {
                         bar = showPercent ? progressData : progressDataNoPercent;
                         partialData += 1;
