@@ -176,7 +176,9 @@ export const apiV2Controller = {
 										Key: `${gridfsOptions.gridFsPrefixOnS3 ? gridfsOptions.gridFsPrefixOnS3 + "/" : ""}${valueMatchFile}${contentType.indexOf("stream") === -1 ? "." + contentType.split("/")[1] : ""}`,
 										Body: filePassThrough,
 										ContentType: contentType
-									}
+									},
+									partSize: 100 * 1024 * 1024,
+									queueSize: 5
 								});
 								await Promise.all([
 									pipeline(gridFsStream, filePassThrough),
@@ -204,8 +206,10 @@ export const apiV2Controller = {
 						Bucket: process.env.AWS_BUCKET_NAME!,
 						Key: `${dataPrefixOnS3 ? dataPrefixOnS3 + "/" : ""}${collection}${use === "query" ? "" : "_aggregated"}.jsonl`,
 						Body: dataPassThrough,
-						ContentType: 'application/x-jsonlines'
-					}
+						ContentType: 'application/x-jsonlines',
+					},
+					partSize: 100 * 1024 * 1024,
+					queueSize: 5
 				});
 				uploadData = upload.done();
 			}
@@ -265,7 +269,9 @@ export const apiV2Controller = {
 						Key: `${dataPrefixOnS3 ? dataPrefixOnS3 + "/" : ""}${collection}${use === "query" ? "" : "_aggregated"}.jsonl`,
 						Body: dataPassThrough,
 						ContentType: 'application/x-jsonlines'
-					}
+					},
+					partSize: 100 * 1024 * 1024,
+					queueSize: 5
 				});
 				uploadPromise = upload.done();
 			} else {
@@ -322,7 +328,9 @@ export const apiV2Controller = {
 									Key: `${gridfsOptions.gridFsPrefixOnS3 ? gridfsOptions.gridFsPrefixOnS3 + "/" : ""}${matchGridFsStringValue}${contentType.indexOf("stream") === -1 ? "." + contentType.split("/")[1] : ""}`,
 									Body: filePassThrough,
 									ContentType: contentType
-								}
+								},
+								partSize: 100 * 1024 * 1024,
+								queueSize: 5
 							});
 							await Promise.all([
 								pipeline(gridFsStream, filePassThrough),
