@@ -133,9 +133,11 @@ export const apiV2Controller = {
 						const line = JSON.stringify(doc) + "\n";
 						if (!dataPassThrough.write(line)) {
 							await new Promise<void>(resolve => dataPassThrough.once('drain', () => {
-								includeData && SSEUtils.sendData({ event: "data", type: "data" });
+								SSEUtils.sendData({ event: "data", type: "data" });
 								resolve();
 							}));
+						} else {
+							SSEUtils.sendData({ event: "data", type: "data" });
 						}
 					}
 					if (UPLOAD_GRIDFS_FILE) {
@@ -286,9 +288,11 @@ export const apiV2Controller = {
 				if (includeData) {
 					if (!dataPassThrough.write(line)) {
 						await new Promise<void>(res => dataPassThrough.once('drain', () => {
-							includeData && SSEUtils.sendData({ event: "data", type: "data" });
+							SSEUtils.sendData({ event: "data", type: "data" });
 							res();
 						}));
+					} else {
+						SSEUtils.sendData({ event: "data", type: "data" });
 					}
 				}
 				if (UPLOAD_GRIDFS_FILE) {
