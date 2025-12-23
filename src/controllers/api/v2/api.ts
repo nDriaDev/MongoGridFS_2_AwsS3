@@ -109,14 +109,10 @@ export const apiV2Controller = {
 			let data = Number(req.params.data);
 			let files = Number(req.params.files);
 			if (data === -1 && files === -1) {
-				const result: { data: number; files: number; } = await MongoUtils.getCounts(includeData, db, collection, use, aggregation, filter, options, gridfsOptions);
-				data = result.data;
-				files = result.files;
-				if (data === -1 && files === -1) {
-					res.status(400).send({ message: "No data to upload." });
-				}
+				SSEUtils.sendData({ event: "count", totalData: data, totalGridFS: files });
+			} else {
+				SSEUtils.sendData({ event: "no-count" });
 			}
-			SSEUtils.sendData({ event: "count", totalData: data, totalGridFS: files });
 
 			//@ts-ignore
 			const UPLOAD_GRIDFS_FILE = "collectionField" in gridfsOptions;

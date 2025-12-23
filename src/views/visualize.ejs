@@ -40,6 +40,26 @@
             </div>
         </div>
     </div>
+    <div class="col-12" hidden>
+        <div class="row g-3">
+            <div class="col-4">
+                <span class="fw-bold">Data: </span>
+            </div>
+            <div class="col-6 progress">
+                <span id="progress-data-no-percent"></span>
+            </div>
+        </div>
+    </div>
+    <div class="col-12" hidden>
+        <div class="row g-3">
+            <div class="col-4">
+                <span class="fw-bold">File: </span>
+            </div>
+            <div class="col-6 progress">
+                <span id="progress-gridfs-no-percent"></span>
+            </div>
+        </div>
+    </div>
     <div id="completed" class="alert d-none fw-bold" role="alert">
     </div>
 </div>
@@ -61,6 +81,8 @@
     const uploadDiv = document.getElementById("data-upload");
     const progressData = document.getElementById("progress-data");
     const progressGridFS = document.getElementById("progress-gridfs");
+    const progressDataNoPercent = document.getElementById("progress-data-no-percent");
+    const progressGridFSNoPercent = document.getElementById("progress-gridfs-no-percent");
     const completed = document.getElementById("completed");
 
     function toggleSpinner() {
@@ -109,6 +131,8 @@
         completed.innerHTML = "";
         progressData.parentElement.parentElement.parentElement.setAttribute("hidden", true);
         progressGridFS.parentElement.parentElement.parentElement.setAttribute("hidden", true);
+        progressDataNoPercent.parentElement.parentElement.parentElement.setAttribute("hidden", true);
+        progressGridFSNoPercent.parentElement.parentElement.parentElement.setAttribute("hidden", true);
         s3.disabled = true;
         countBtn.disabled = true;
         uploadBtn.disabled = true;
@@ -119,7 +143,7 @@
 
         evtSource.onmessage = e => {
             const { id, loaded, total, event, type, totalData, totalGridFS, error } = JSON.parse(e.data);
-            let bar, percent;
+            let bar, percent, showPercent = true;
             if(event) {
                 if(event === "complete") {
                     evtSource.close();
@@ -131,30 +155,32 @@
                 } else if(event === "count") {
                     countData = totalData;
                     countGridFS = totalGridFS;
+                } else if(event === "no-count") {
+                    showPercent = false;
                 } else if(event === "data") {
-                    if(type === "data") {
-                        bar= progressData;
-                        partialData+=1;
-                        percent = (partialData/countData)*100;
+                    if (type === "data") {
+                        bar = showPercent ? progressData : progressDataNoPercent;
+                        partialData += 1;
+                        percent = showPercent ? partialData : (partialData / countData) * 100;
                     } else {
-                        bar = progressGridFS;
+                        bar = showPercent ? progressGridFS : progressGridFSNoPercent;
                         partialGridFS += 1;
-                        percent = (partialGridFS / countGridFS) * 100;
+                        percent = showPercent ? partialGridFS : (partialGridFS / countGridFS) * 100;
                     }
                 }
             }
             if(error) {
                 completed.innerHTML = error;
-                percent = 100;
+                percent = showPercent ? 100 : 0;
             }
             percent = Math.floor(percent);
 
             if (!bar) return;
             bar.parentElement.parentElement.parentElement.removeAttribute("hidden");
-            bar.style.width = percent + "%";
-            bar.textContent = error ? "ERROR" : (percent + "%");
+            showPercent && (bar.style.width = percent + "%");
+            bar.textContent = error ? "ERROR" : `${percent}${showPercent ? '%' : ''}`;
 
-            if (percent === 100) {
+            if (percent === 100 && showPercent) {
                 bar.classList.add(`bg-${error ? "danger" : "success"}`);
             }
         };
