@@ -229,7 +229,8 @@ export const apiV2Controller = {
 			if (!req.app.locals.s3Client) {
 				res.status(500).send({ message: "No AWS S3 Client initialized." })
 			} else {
-				const { prefix } = req.params;
+				let { prefix } = req.params;
+				prefix = decodeURIComponent(prefix);
 				const command = new ListObjectsCommand({ Bucket: process.env.AWS_BUCKET_NAME!, Prefix: prefix });
 				const result = await req.app.locals.s3Client.send(command);
 				const list = (result.Contents || []).map(el => ({ fileName: el.Key, size: el.Size, tag: el.ETag, lastModified: el.LastModified, storage: el.StorageClass, owner: el.Owner }));
@@ -244,9 +245,10 @@ export const apiV2Controller = {
 			if (!req.app.locals.s3Client) {
 				res.status(500).send({ message: "No AWS S3 Client initialized." })
 			} else {
-				const { filename, prefix } = req.params;
+				let { filename, prefix } = req.params;
 				let command;
 				if (prefix) {
+					prefix = decodeURIComponent(prefix);
 					const commandList = new ListObjectsCommand({ Bucket: process.env.AWS_BUCKET_NAME!, Prefix: prefix });
 					const result = await req.app.locals.s3Client.send(commandList);
 					if (!result.Contents || result.Contents.length === 0) {
@@ -260,6 +262,7 @@ export const apiV2Controller = {
 						}
 					});
 				} else {
+					filename = decodeURIComponent(filename);
 					command = new DeleteObjectsCommand({
 						Bucket: process.env.AWS_BUCKET_NAME!,
 						Delete: {
