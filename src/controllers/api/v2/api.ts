@@ -1,4 +1,4 @@
-import { CompleteMultipartUploadCommandOutput, DeleteObjectsCommand, GetObjectCommand, ListObjectsCommand, ListObjectsV2Command, Owner } from "@aws-sdk/client-s3";
+import { CompleteMultipartUploadCommandOutput, DeleteObjectsCommand, GetObjectCommand, ListObjectsV2Command, Owner } from "@aws-sdk/client-s3";
 import { NextFunction, Request, Response } from "express";
 import { s3Utils } from "../../../utils/s3.js";
 import { Upload } from "@aws-sdk/lib-storage";
@@ -6,7 +6,7 @@ import { SSEUtils } from "../../../utils/sse.js";
 import { QueryOptions } from "../../../model/index.js";
 import { PassThrough, Transform } from "stream";
 import pLimit from "p-limit";
-import { Db, GridFSBucket, ObjectId } from "mongodb";
+import { GridFSBucket, ObjectId } from "mongodb";
 import { pipeline } from "stream/promises";
 import { MongoUtils } from "../../../utils/mongo.js";
 
