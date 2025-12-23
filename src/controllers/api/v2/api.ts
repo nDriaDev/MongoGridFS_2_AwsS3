@@ -1,4 +1,4 @@
-import { DeleteObjectsCommand, GetObjectCommand, ListObjectsCommand } from "@aws-sdk/client-s3";
+import { CompleteMultipartUploadCommandOutput, DeleteObjectsCommand, GetObjectCommand, ListObjectsCommand } from "@aws-sdk/client-s3";
 import { NextFunction, Request, Response } from "express";
 import { s3Utils } from "../../../utils/s3.js";
 import { Upload } from "@aws-sdk/lib-storage";
@@ -120,109 +120,100 @@ export const apiV2Controller = {
 
 			//@ts-ignore
 			const UPLOAD_GRIDFS_FILE = "collectionField" in gridfsOptions;
-			const gridFsMatchValues: string[] = [];
-
-			const passThrough = new PassThrough();
+			let gridFsBucket;
+			if (UPLOAD_GRIDFS_FILE) {
+				gridFsBucket = new GridFSBucket(db, { bucketName: gridfsOptions.gridFsCollection });
+			}
 			const stream = use === "query"
 				? db.collection(collection).find(filter, { ...options, batchSize: 1000 }).stream()
 				: db.collection(collection).aggregate(aggregation).stream();
-			const transformToJsonl = new Transform({
+			let uploadData: Promise<void | CompleteMultipartUploadCommandOutput> = Promise.resolve();
+			const limit = pLimit(10);
+			const fileTasks: Promise<void>[] = [];
+			const dataPassThrough = new PassThrough();
+			const uploadTransform = new Transform({
 				objectMode: true,
 				transform(doc, _, callback) {
-					try {
-						const docLine = JSON.stringify(doc) + "\n";
-						if (UPLOAD_GRIDFS_FILE) {
-							const matchValue = (gridfsOptions.prefix || "") + doc[gridfsOptions.collectionField] + (gridfsOptions.suffix || "");
-							gridFsMatchValues.push(matchValue);
-						}
-						if (includeData) {
-							callback(null, docLine);
-						} else {
-							callback(null, "");
-						}
-					} catch (error) {
-						callback(error as Error);
+					let canContinue = true;
+					if (includeData) {
+						canContinue = dataPassThrough.write(JSON.stringify(doc) + "\n");
+					}
+					if (UPLOAD_GRIDFS_FILE) {
+						let founded = true;
+						const task = limit(async () => {
+							try {
+								const match = (gridfsOptions.prefix || "") + doc[gridfsOptions.collectionField] + (gridfsOptions.suffix || "");
+								const valueMatchFile = gridfsOptions.matchField === "_id"
+									? new ObjectId(match)
+									: match;
+								const fileExists = await db.collection(gridfsOptions.gridFsCollection + ".files").findOne({ [gridfsOptions.matchField]: valueMatchFile }, { projection: { _id: 1 } });
+								if (!fileExists) {
+									founded = false;
+									return;
+								}
+								let gridFsStream, mimeStream;
+								if (gridfsOptions.matchField === "_id") {
+									gridFsStream = gridFsBucket!.openDownloadStream(valueMatchFile as ObjectId);
+									mimeStream = gridFsBucket!.openDownloadStream(valueMatchFile as ObjectId);
+								} else {
+									gridFsStream = gridFsBucket!.openDownloadStreamByName(valueMatchFile as string);
+									mimeStream = gridFsBucket!.openDownloadStreamByName(valueMatchFile as string);
+								}
+								const contentType = await s3Utils.detectContentType(mimeStream);
+								const filePassThrough = new PassThrough();
+								const upload = new Upload({
+									client: req.app.locals.s3Client!,
+									params: {
+										Bucket: process.env.AWS_BUCKET_NAME!,
+										Key: `${gridfsOptions.gridFsPrefixOnS3 ? gridfsOptions.gridFsPrefixOnS3 + "/" : ""}${valueMatchFile}${contentType.indexOf("stream") === -1 ? "." + contentType.split("/")[1] : ""}`,
+										Body: filePassThrough,
+										ContentType: contentType
+									}
+								});
+								await Promise.all([
+									pipeline(gridFsStream, filePassThrough),
+									upload.done()
+								]);
+								SSEUtils.sendData({ event: "data", type: "files" });
+							} catch (error) {
+								SSEUtils.sendData({
+									error: (error as Error).message
+								});
+							}
+						});
+						founded && fileTasks.push(task);
+					}
+					if (canContinue) {
+						includeData && SSEUtils.sendData({ event: "data", type: "data" });
+					} else {
+						dataPassThrough.once("drain", () => {
+							includeData && SSEUtils.sendData({ event: "data", type: "data" });
+							callback();
+						});
 					}
 				},
+				flush(callback) {
+					dataPassThrough.end();
+					callback();
+				},
 			});
-			const pipes = pipeline(
-				stream,
-				transformToJsonl,
-				passThrough
-			);
-			transformToJsonl.on("data", chunk => {
-				console.log("TransformToJsonl received chunk");
-				SSEUtils.sendData({ event: "data", type: "data" });
-			});
-			stream.on("error", err => {
-				console.error(err ? err instanceof Error ? err : Error(err) : "Errore durante lo stream.");
-				// reject(err ? err instanceof Error ? err : Error(err) : "Errore durante lo stream.");
-			});
-			transformToJsonl.on("error", err => {
-				console.error(err ? err instanceof Error ? err : Error(err) : "Errore durante la creazione del jsonl.");
-				// reject(err ? err instanceof Error ? err : Error(err) : "Errore durante la creazione del jsonl.");
-			});
-			passThrough.on("error", err => {
-				console.error(err ? err instanceof Error ? err : Error(err) : "Errore durante l'upload.");
-				// reject(err ? err instanceof Error ? err : Error(err) : "Errore durante l'upload.");
-			});
-			passThrough.on("finish", async () => {
-				console.log("stream data finish");
-			});
-			await pipes;
-			if (includeData && data > 0) {
+			if (includeData) {
 				const upload = new Upload({
 					client: req.app.locals.s3Client!,
 					params: {
 						Bucket: process.env.AWS_BUCKET_NAME!,
 						Key: `${dataPrefixOnS3 ? dataPrefixOnS3 + "/" : ""}${collection}${use === "query" ? "" : "_aggregated"}.jsonl`,
-						Body: passThrough,
-						ContentType: "application/json"
+						Body: dataPassThrough,
+						ContentType: 'application/x-jsonlines'
 					}
 				});
-				upload.on("httpUploadProgress", progress => {
-					console.log("progress upload", progress.Key, progress.loaded, progress.part, progress.total);
-				});
-				await upload.done();
+				uploadData = upload.done();
 			}
-			if (UPLOAD_GRIDFS_FILE && data > 0 && files > 0) {
-				const limit = pLimit(5);
-				const gridFsBucket = new GridFSBucket(db, { bucketName: gridfsOptions.gridFsCollection });
-				const tasks = [];
-				for (const match of gridFsMatchValues) {
-					tasks.push(limit(async () => {
-						try {
-							let valueMatchFile, gridFsStream, mimeStream;
-							if (gridfsOptions.matchField === "_id") {
-								valueMatchFile = new ObjectId(match);
-								gridFsStream = gridFsBucket!.openDownloadStream(valueMatchFile);
-								mimeStream = gridFsBucket!.openDownloadStream(valueMatchFile);
-							} else {
-								valueMatchFile = match;
-								gridFsStream = gridFsBucket!.openDownloadStreamByName(valueMatchFile);
-								mimeStream = gridFsBucket!.openDownloadStreamByName(valueMatchFile);
-							}
-							const contentType = await s3Utils.detectContentType(mimeStream);
-							const uploadFile = new Upload({
-								client: req.app.locals.s3Client!,
-								params: {
-									Bucket: process.env.AWS_BUCKET_NAME!,
-									Key: `${gridfsOptions.gridFsPrefixOnS3 ? gridfsOptions.gridFsPrefixOnS3 + "/" : ""}${valueMatchFile}${contentType.indexOf("stream") === -1 ? "." + contentType.split("/")[1] : ""}`,
-									Body: gridFsStream,
-									ContentType: contentType
-								}
-							});
-							await uploadFile.done();
-							SSEUtils.sendData({ event: "data", type: "files" });
-						} catch (error) {
-							SSEUtils.sendData({
-								error: (error as Error).message
-							});
-						}
-					}));
-				}
-				await Promise.all(tasks);
-			}
+			await pipeline(stream, uploadTransform);
+			await Promise.all([
+				uploadData,
+				...fileTasks
+			]);
 			req.app.locals.queryOptions = undefined as unknown as QueryOptions;
 		} catch (error) {
 			SSEUtils.sendData({
