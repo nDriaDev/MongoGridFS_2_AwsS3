@@ -165,11 +165,11 @@
 					if (type === "data") {
                         bar = showPercent ? progressData : progressDataNoPercent;
                         partialData += 1;
-                        percent = showPercent ? partialData : (partialData / countData) * 100;
+                        percent = showPercent ? (partialData / countData) * 100 : partialData;
                     } else {
                         bar = showPercent ? progressGridFS : progressGridFSNoPercent;
                         partialGridFS += 1;
-                        percent = showPercent ? partialGridFS : (partialGridFS / countGridFS) * 100;
+                        percent = showPercent ? (partialGridFS / countGridFS) * 100 : partialGridFS;
                     }
                 }
             }
