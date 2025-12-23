@@ -1,20 +1,39 @@
 <%- include('partials/header') %>
 <h1 class="mb-4">AWS S3 Bucket</h1>
 <div class="row g-3">
-    <div class="col-6">
-        <input type="text" id="prefixInput" class="form-control" placeholder="Inserisci prefisso..." />
+    <div class="col-12">
+        <fieldset class="fieldset-bordered h-100">
+            <legend>Filtri</legend>
+            <div class="row g-3">
+                <div class="col-4">
+                    <label for="prefixInput" class="form-label fw-semibold">Prefisso</label>
+                    <input type="text" id="prefixInput" class="form-control" />
+                </div>
+                <div class="col-2">
+                    <label for="limit" class="form-label fw-semibold">Limite</label>
+                    <input type="number" id="limit" class="form-control" min="1" max="999999999" step="1" value="1000" />
+                </div>
+                <div class="col-1" style="align-content: end;">
+                    <div class="form-check">
+                        <label class="form-check-label fw-semibold">
+                            <input type="checkbox" id="unlimit" class="form-check-input me-1" onchange="toggleUnlimit(event)">Tutti
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </fieldset>
     </div>
-    <div class="col-2">
-        <button id="searchBtn" class="btn btn-primary w-100">
+    <div class="col-auto">
+        <button id="searchBtn" class="btn btn-primary">
             Cerca
         </button>
     </div>
-    <div class="col-2">
-        <button id="delBtn" class="btn btn-outline-danger w-100" onclick="delMassive()" disabled>
+    <div class="col-auto">
+        <button id="delBtn" class="btn btn-outline-danger" onclick="delMassive()" disabled>
             Elimina tutti
         </button>
     </div>
-    <div class="col-2">
+    <div class="col-auto">
         <a id="nq" href="/v2" class="btn btn-outline-primary">Nuova query</a>
     </div>
 </div>
@@ -64,6 +83,8 @@
     const resultsBody = document.getElementById("resultsBody");
     const totalEl = document.getElementById("total");
     const prefixInput = document.getElementById("prefixInput");
+    const limit = document.getElementById("limit");
+    const unlimit = document.getElementById("unlimit");
     const searchBtn = document.getElementById("searchBtn");
     const delBtn = document.getElementById("delBtn");
 
@@ -87,6 +108,12 @@
         }
 
         return `${size.toFixed(2)} ${units[unitIndex]}`;
+    }
+
+    function toggleUnlimit(e) {
+        e.target.checked
+            ? limit.setAttribute("disabled", true)
+            : limit.removeAttribute("disabled");
     }
 
     function sortResults(key, isFirstLoad = false) {
@@ -154,7 +181,7 @@
         });
     }
 
-    async function loadResults(prefix = "") {
+    async function loadResults(prefix = "", limit, unlimit) {
         toggleSpinner();
         execSearch.classList.add("d-none");
         empty.classList.add("d-none");
@@ -163,7 +190,7 @@
 
         try {
             const encodedPrefix = encodeURIComponent(prefix);
-            const res = await fetch(`/api/v2/s3${prefix !== "" ? "/"+encodedPrefix : ""}`);
+            const res = await fetch(`/api/v2/s3/${encodedPrefix || "-1"}/${unlimit ? "-1" : limit}`);
             const data = await res.json();
 
             if (!data || data.length === 0) {
@@ -188,12 +215,18 @@
     }
 
     searchBtn.addEventListener("click", () => {
-        loadResults(encodeURIComponent(prefixInput.value.trim()));
+        loadResults(encodeURIComponent(prefixInput.value.trim()), limit.value, unlimit.checked);
     });
 
     prefixInput.addEventListener("keydown", e => {
         if (e.key === "Enter") {
-            loadResults(encodeURIComponent(prefixInput.value.trim()));
+            loadResults(encodeURIComponent(prefixInput.value.trim()), limit.value, unlimit.checked);
+        }
+    });
+
+    limit.addEventListener("keydown", e => {
+        if (e.key === "Enter") {
+            loadResults(encodeURIComponent(prefixInput.value.trim()), limit.value, unlimit.checked);
         }
     });
 
@@ -217,7 +250,7 @@
                 }
                 delBtn.setAttribute("disabled", true);
                 toggleSpinner();
-                await loadResults(prefixInput.value.trim());
+                await loadResults(prefixInput.value.trim(), limit.value, unlimit.checked);
             } catch (error) {
                 toggleSpinner();
                 alert(error.message);

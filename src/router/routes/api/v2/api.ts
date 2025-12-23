@@ -314,6 +314,11 @@ export const apiV2Routes = (router: Router) => {
 	*         required: true
 	*         schema:
 	*           type: string
+	*       - name: limit
+	*         in: path
+	*         required: true
+	*         schema:
+	*           type: string
 	*     responses:
 	*       200:
 	*         description: La lista di oggetti trovati
@@ -344,7 +349,7 @@ export const apiV2Routes = (router: Router) => {
 	*                 message:
 	*                   type: string
 	*/
-	router.get("/s3/:prefix", controllers.apiV2Controller.readBucketContent);
+	router.get("/s3/:prefix/:limit", controllers.apiV2Controller.readBucketContent);
 	/**
 	* @openapi
 	* /api/v2/s3-download/{filename}:
@@ -458,6 +463,11 @@ export const apiV2Routes = (router: Router) => {
 	*         required: true
 	*         schema:
 	*           type: string
+	*       - name: limit
+	*         in: path
+	*         required: true
+	*         schema:
+	*           type: string
 	*     responses:
 	*       200:
 	*         description: I nomi dei file cancellati oppure 0 file cancellati se nessun file è stato trovato
@@ -495,6 +505,6 @@ export const apiV2Routes = (router: Router) => {
 	*                 message:
 	*                   type: string
 	*/
-	router.get("/s3-del-many/:prefix", controllers.apiV2Controller.deleteBucketFile);
+	router.get("/s3-del-many/:prefix/:limit", controllers.apiV2Controller.deleteBucketFile);
 	return router;
 }

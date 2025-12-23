@@ -365,8 +365,10 @@ export const apiV2Controller = {
 			if (!req.app.locals.s3Client) {
 				res.status(500).send({ message: "No AWS S3 Client initialized." })
 			} else {
-				let { prefix } = req.params;
-				prefix = decodeURIComponent(prefix);
+				let { prefix, limit } = req.params as { prefix: string, limit: string | number };
+				prefix = prefix === "-1" ? "" : decodeURIComponent(prefix);
+				limit = Number(limit);
+				isNaN(limit) && (limit = 1000);
 				const list: { fileName?: string, size?: number, tag?: string, lastModified?: Date, storage?: string, owner?: Owner }[] = [];
 				let isTruncated = true;
 				let nextToken: string | undefined;
@@ -381,6 +383,10 @@ export const apiV2Controller = {
 					(result.Contents || []).forEach(el => list.push({ fileName: el.Key, size: el.Size, tag: el.ETag, lastModified: el.LastModified, storage: el.StorageClass, owner: el.Owner }));
 					isTruncated = result.IsTruncated ?? false;
 					nextToken = result.NextContinuationToken;
+					if (limit !== -1 && list.length >= limit) {
+						list.splice(limit, list.length - limit);
+						isTruncated = false;
+					}
 				}
 				res.status(200).json(list);
 			}
@@ -393,10 +399,12 @@ export const apiV2Controller = {
 			if (!req.app.locals.s3Client) {
 				res.status(500).send({ message: "No AWS S3 Client initialized." })
 			} else {
-				let { filename, prefix } = req.params;
+				let { filename, prefix, limit } = req.params as { filename: string, prefix: string, limit: string | number };
 				let commands = [];
 				if (prefix) {
-					prefix = decodeURIComponent(prefix);
+					prefix = prefix === "-1" ? "" : decodeURIComponent(prefix);
+					limit = Number(limit);
+					isNaN(limit) && (limit = 1000);
 					const list: { Key: string }[] = [];
 					let isTruncated = true;
 					let nextToken: string | undefined;
@@ -415,6 +423,10 @@ export const apiV2Controller = {
 						(result.Contents || []).forEach(el => el.Key && list.push({ Key: el.Key }));
 						isTruncated = result.IsTruncated ?? false;
 						nextToken = result.NextContinuationToken;
+						if (limit !== -1 && list.length >= limit) {
+							list.splice(limit, list.length - limit);
+							isTruncated = false;
+						}
 					}
 					// INFO la delete ha un limite di 1000 cancellazioni per richiesta
 					for (let i = 0; i < list.length; i += 1000) {

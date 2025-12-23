@@ -35,3 +35,42 @@
 	border: 1px solid #ced4da;
 	padding: 10px;
 }
+
+fieldset {
+	min-width: 0;
+	padding: 0;
+	margin: 0;
+	border: 0
+}
+
+fieldset.fieldset-bordered {
+	border: var(--bs-border-width) var(--bs-border-style) #6c757d;
+	border-radius: .25rem;
+	padding: 0 1rem .75rem
+}
+
+fieldset.fieldset-bordered legend {
+	padding: 0 1.5em
+}
+
+fieldset legend {
+	font-family: "Titillium Web", system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+	font-size: 1rem;
+	font-weight: 600;
+	margin-bottom: .5rem;
+	width: auto
+}
+
+fieldset legend.legend-inline {
+	margin-bottom: 0;
+	padding-right: 1rem
+}
+
+fieldset legend:not(.legend-inline) {
+	float: none
+}
+
+fieldset.tree-view .form-check {
+	margin: 0;
+	padding: .25rem 0 .25rem 1.5em
+}
