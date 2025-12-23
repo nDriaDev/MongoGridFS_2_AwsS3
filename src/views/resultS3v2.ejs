@@ -28,7 +28,7 @@
 </div>
 
 <div id="tableContainer" class="d-none">
-    <div class="mb-3">
+    <div class="my-3">
         <strong>Totale risultati:</strong>
         <span id="total"></span>
     </div>
@@ -36,9 +36,15 @@
     <table class="table table-striped align-middle">
         <thead class="table-dark">
             <tr>
-                <th>Filename</th>
-                <th>Size</th>
-                <th>Last edit</th>
+                <th onclick="sortResults('fileName')" style="cursor:pointer" class="user-select-none">
+                    Filename <i id="sortIcon-fileName" class="bi bi-sort-alpha-down ms-1"></i>
+                </th>
+                <th onclick="sortResults('size')" style="cursor:pointer" class="user-select-none">
+                    Size <i id="sortIcon-size" class="bi ms-1 d-none"></i>
+                </th>
+                <th onclick="sortResults('lastModified')" style="cursor:pointer" class="user-select-none">
+                    Last edit <i id="sortIcon-lastModified" class="bi ms-1 d-none"></i>
+                </th>
                 <th style="width: 120px">Azioni</th>
             </tr>
         </thead>
@@ -49,6 +55,9 @@
 </div>
 
 <script>
+    let currentData = [];
+    let sortDirection = 1;
+    let currentSortKey = "fileName";
     const empty = document.getElementById("empty");
     const execSearch = document.getElementById("execSearch");
     const tableContainer = document.getElementById("tableContainer");
@@ -80,6 +89,71 @@
         return `${size.toFixed(2)} ${units[unitIndex]}`;
     }
 
+    function sortResults(key, isFirstLoad = false) {
+        if (!isFirstLoad && currentSortKey === key) {
+            sortDirection *= -1;
+        } else if (!isFirstLoad) {
+            sortDirection = 1;
+            currentSortKey = key;
+        }
+
+        document.querySelectorAll('th i.bi').forEach(icon => {
+            icon.classList.add('d-none');
+            icon.className = 'bi ms-1 d-none';
+        });
+
+        const activeIcon = document.getElementById(`sortIcon-${key}`);
+        activeIcon.classList.remove('d-none');
+
+        if (key === 'fileName') {
+            activeIcon.classList.add(sortDirection === 1 ? 'bi-sort-alpha-down' : 'bi-sort-alpha-up');
+        } else if (key === 'size') {
+            activeIcon.classList.add(sortDirection === 1 ? 'bi-sort-numeric-down' : 'bi-sort-numeric-up');
+        } else {
+            activeIcon.classList.add(sortDirection === 1 ? 'bi-sort-down' : 'bi-sort-up');
+        }
+
+        currentData.sort((a, b) => {
+            let valA = a[key];
+            let valB = b[key];
+
+            if (key === 'lastModified') {
+                valA = valA ? new Date(valA).getTime() : 0;
+                valB = valB ? new Date(valB).getTime() : 0;
+            }
+
+            if (typeof valA === 'string') {
+                return valA.localeCompare(valB) * sortDirection;
+            }
+
+            return (valA - valB) * sortDirection;
+        });
+
+        renderTable(currentData);
+    }
+
+    function renderTable(data) {
+        resultsBody.innerHTML = "";
+        totalEl.textContent = data.length;
+
+        data.forEach((item, index) => {
+            const tr = document.createElement("tr");
+            tr.setAttribute("id", "row-" + index);
+            tr.innerHTML = `
+            <td>${item.fileName}</td>
+            <td>${formatSize(item.size)}</td>
+            <td>${!!item.lastModified ? new Date(item.lastModified).toLocaleString() : "N.D."}</td>
+            <td>
+                <div class="d-flex gap-1">
+                    <button class="btn btn-sm btn-primary" onclick="downloadFile(${index},'${item.fileName}')">Scarica</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteFile(${index},'${item.fileName}')">Elimina</button>
+                </div>
+            </td>
+        `;
+            resultsBody.appendChild(tr);
+        });
+    }
+
     async function loadResults(prefix = "") {
         toggleSpinner();
         execSearch.classList.add("d-none");
@@ -97,24 +171,8 @@
                 return;
             }
 
-            totalEl.textContent = data.length;
-
-            data.forEach((item, index) => {
-                const tr = document.createElement("tr");
-                tr.setAttribute("id", "row-"+index);
-                tr.innerHTML = `
-          <td>${item.fileName}</td>
-          <td>${formatSize(item.size)}</td>
-          <td>${!!item.lastModified ? new Date(item.lastModified).toLocaleString() : "N.D."}</td>
-          <td>
-            <div class="d-flex gap-1">
-                <button class="btn btn-sm btn-primary" onclick="downloadFile(${index},'${item.fileName}')">Scarica</button>
-                <button class="btn btn-sm btn-danger" onclick="deleteFile(${index},'${item.fileName}')">Elimina</button>
-            </div>
-          </td>
-        `;
-                resultsBody.appendChild(tr);
-            });
+            currentData = data;
+            sortResults('fileName', true);
 
             tableContainer.classList.remove("d-none");
             delBtn.removeAttribute("disabled");
@@ -169,7 +227,7 @@
         }
 
         const btn = document.querySelector(
-            `#row-${index} button:nth-child(2)`
+        `#row-${index} button:nth-child(2)`
         );
         btn.disabled = true;
         btn.textContent = "Elimino...";
@@ -200,7 +258,7 @@
     }
     async function downloadFile(index, id) {
         const btn = document.querySelector(
-            `#row-${index} button`
+        `#row-${index} button`
         );
         try {
             btn.disabled = true;
