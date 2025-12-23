@@ -124,19 +124,33 @@ export const apiV2Controller = {
 				? db.collection(collection).find(filter, { ...options, batchSize: 1000 }).stream()
 				: db.collection(collection).aggregate(aggregation).stream();
 			let uploadData: Promise<void | CompleteMultipartUploadCommandOutput> = Promise.resolve();
-			const limit = pLimit(10);
-			const fileTasks: Promise<void>[] = [];
+			const CONCURRENCY_LIMIT = 10;
+			const limit = pLimit(CONCURRENCY_LIMIT);
 			const dataPassThrough = new PassThrough();
 			const uploadTransform = new Transform({
 				objectMode: true,
-				transform(doc, _, callback) {
-					let canContinue = true;
+				async transform(doc, _, callback) {
 					if (includeData) {
-						canContinue = dataPassThrough.write(JSON.stringify(doc) + "\n");
+						const line = JSON.stringify(doc) + "\n";
+						if (!dataPassThrough.write(line)) {
+							await new Promise<void>(resolve => dataPassThrough.once('drain', () => {
+								includeData && SSEUtils.sendData({ event: "data", type: "data" });
+								resolve();
+							}));
+						}
 					}
 					if (UPLOAD_GRIDFS_FILE) {
-						let founded = true;
-						const task = limit(async () => {
+						if (limit.activeCount >= CONCURRENCY_LIMIT) {
+							await new Promise<void>(resolve => {
+								const interval = setInterval(() => {
+									if (limit.activeCount < CONCURRENCY_LIMIT) {
+										clearInterval(interval);
+										resolve();
+									}
+								}, 50);
+							})
+						}
+						limit(async () => {
 							try {
 								const match = (gridfsOptions.prefix || "") + doc[gridfsOptions.collectionField] + (gridfsOptions.suffix || "");
 								const valueMatchFile = gridfsOptions.matchField === "_id"
@@ -144,7 +158,6 @@ export const apiV2Controller = {
 									: match;
 								const fileExists = await db.collection(gridfsOptions.gridFsCollection + ".files").findOne({ [gridfsOptions.matchField]: valueMatchFile }, { projection: { _id: 1 } });
 								if (!fileExists) {
-									founded = false;
 									return;
 								}
 								let gridFsStream, mimeStream;
@@ -177,19 +190,8 @@ export const apiV2Controller = {
 								});
 							}
 						});
-						founded && fileTasks.push(task);
 					}
-					if (canContinue) {
-						includeData && SSEUtils.sendData({ event: "data", type: "data" });
-						doc = null;
-						callback();
-					} else {
-						dataPassThrough.once("drain", () => {
-							includeData && SSEUtils.sendData({ event: "data", type: "data" });
-							doc = null;
-							callback();
-						});
-					}
+					callback();
 				},
 				flush(callback) {
 					dataPassThrough.end();
@@ -209,10 +211,10 @@ export const apiV2Controller = {
 				uploadData = upload.done();
 			}
 			await pipeline(stream, uploadTransform);
-			await Promise.all([
-				uploadData,
-				...fileTasks
-			]);
+			await uploadData;
+			while (limit.activeCount > 0 || limit.pendingCount > 0) {
+				await new Promise<void>(resolve => setTimeout(resolve, 500));
+			}
 			req.app.locals.queryOptions = undefined as unknown as QueryOptions;
 		} catch (error) {
 			SSEUtils.sendData({
