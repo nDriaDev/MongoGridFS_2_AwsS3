@@ -367,6 +367,7 @@ function getOptions() {
 
 	if (document.getElementById("gridfsSwitch").checked) {
 		options.gridfsOptions = {
+			gridFsCollection: document.getElementById("gridFsCollection").value,
 			gridFsPrefixOnS3: document.getElementById("gridfs-prefix-val").value,
 			collectionField: document.getElementById(`gridfsField${activeTab === 0 ? "" : "Text"}`).value,
 			prefix: document.getElementById("gridfsPrefix").value,
