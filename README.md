@@ -1,5 +1,8 @@
 # MongoGridFS to AWS S3 Uploader
 
+![MongoDB](img.shields.io)
+![AWS S3](img.shields.io)
+
 This project provides a comprehensive solution for migrating data from MongoDB to AWS S3. It allows users to stream files directly from GridFS and export collection data—or the results of complex aggregation pipelines—as `.jsonl` files to an S3 bucket.
 
 The application features a user-friendly web interface with a powerful query builder, real-time upload progress tracking using Server-Sent Events (SSE), and a simple S3 bucket browser.
