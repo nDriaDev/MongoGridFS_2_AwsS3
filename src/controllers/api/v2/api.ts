@@ -4,11 +4,12 @@ import { s3Utils } from "../../../utils/s3.js";
 import { Upload } from "@aws-sdk/lib-storage";
 import { SSEUtils } from "../../../utils/sse.js";
 import { QueryOptions } from "../../../model/index.js";
-import { PassThrough, Transform } from "stream";
+import { PassThrough, Readable, Transform } from "stream";
 import pLimit from "p-limit";
 import { GridFSBucket, ObjectId } from "mongodb";
 import { pipeline } from "stream/promises";
 import { MongoUtils } from "../../../utils/mongo.js";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export const apiV2Controller = {
 	getCollections: async (req: Request, res: Response, next: NextFunction) => {
@@ -490,10 +491,33 @@ export const apiV2Controller = {
 				} else {
 					res.set({
 						"Content-type": result.ContentType || "application/octet-stream",
-						"Content-disposition": `attachment; filename=${filename}`
+						"Content-disposition": `attachment; filename=${filename}`,
+						"Content-Length": result.ContentLength
 					});
-					res.status(200).send(await result.Body?.transformToByteArray());
+					const stream = result.Body as Readable;
+					stream.pipe(res);
+					stream.on('error', err => {
+						console.error("Stream error: ", err);
+						res.end();
+					});
 				}
+			}
+		} catch (error) {
+			next(error);
+		}
+	},
+	downloadBucketFileFromAws: async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!req.app.locals.s3Client) {
+				res.status(500).send({ message: "No AWS S3 Client initialized." })
+			} else {
+				const { filename } = req.params;
+				const command = new GetObjectCommand({
+					Bucket: process.env.AWS_BUCKET_NAME!,
+					Key: filename
+				});
+				const url = await getSignedUrl(req.app.locals.s3Client, command, { expiresIn: 900 });
+				res.status(200).json({ downloadUrl: url });
 			}
 		} catch (error) {
 			next(error);

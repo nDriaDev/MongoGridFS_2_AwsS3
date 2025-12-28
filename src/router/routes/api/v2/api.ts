@@ -399,6 +399,58 @@ export const apiV2Routes = (router: Router) => {
 	router.get("/s3-download/:filename", controllers.apiV2Controller.downloadBucketFile);
 	/**
 	* @openapi
+	* /api/v2/s3-download-from-aws/{filename}:
+	*   get:
+	*     summary: Esegue il download del file con il filename indicato come path param direttamente da aws
+	*     tags:
+	*       - v2
+	*       - AWS S3 Bucket
+	*     parameters:
+	*       - name: filename
+	*         in: path
+	*         required: true
+	*         schema:
+	*           type: string
+	*     responses:
+	*       200:
+	*         description: Il download url del file
+	*         content:
+	*           application/json:
+	*             schema:
+	*               type: object
+	*               properties:
+	*                 downloadUrl:
+	*                   type: string
+	*       400:
+	*         description: Richiesta non valida
+	*         content:
+	*           application/json:
+	*             schema:
+	*               type: array
+	*               items:
+	*                 type: string
+	*       404:
+	*         description: File non trovato
+	*         content:
+	*           application/json:
+	*             schema:
+	*               type: object
+	*               properties:
+	*                 message:
+	*                   type: string
+	*       500:
+	*         description: Errore interno
+	*         content:
+	*           application/json:
+	*             schema:
+	*               type: object
+	*               properties:
+	*                 message:
+	*                   type: string
+	*/
+	router.get("/s3-download-from-aws/:filename", controllers.apiV2Controller.downloadBucketFileFromAws);
+	/**
+	* @openapi
 	* /api/v2/s3-del-one/{filename}:
 	*   get:
 	*     summary: Esegue la cancellazione dal bucket del file con filename quello indicato come path param

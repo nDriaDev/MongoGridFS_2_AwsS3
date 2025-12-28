@@ -22,6 +22,7 @@
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.952.0",
 		"@aws-sdk/lib-storage": "^3.952.0",
+		"@aws-sdk/s3-request-presigner": "^3.958.0",
 		"ejs": "^3.1.10",
 		"express": "^5.2.1",
 		"https-proxy-agent": "^7.0.6",
