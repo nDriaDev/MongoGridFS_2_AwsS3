@@ -1,11 +1,13 @@
 {
-	"name": "arts_dei_uda_images_uploader",
+	"name": "mongo-gridfs-2-aws-s3",
 	"version": "1.0.0",
 	"type": "module",
 	"main": "index.js",
 	"scripts": {
 		"dev": "tsx --watch --env-file environment/.env src/index.ts",
-		"start": "node --env-file environment/.env dist/index.js",
+		"dev-multi": "pm2 start ecosystem.config.cjs --only dev",
+		"start": "npm run build && node --env-file environment/.env dist/index.js",
+		"start-multi": "npm run build && pm2 start ecosystem.config.cjs --only prod",
 		"build": "tsc",
 		"type-check": "tsc --noEmit",
 		"lint": "eslint .",
@@ -28,6 +30,7 @@
 		"https-proxy-agent": "^7.0.6",
 		"mongodb": "^7.0.0",
 		"p-limit": "^7.2.0",
+		"pm2": "^6.0.14",
 		"swagger-jsdoc": "^6.2.8",
 		"swagger-ui-express": "^5.0.1"
 	},

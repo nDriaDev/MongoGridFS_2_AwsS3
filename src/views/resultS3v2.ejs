@@ -20,6 +20,16 @@
                         </label>
                     </div>
                 </div>
+                <div class="col-auto ms-auto" style="align-content: end;">
+                    <div class="btn-group" role="group" aria-label="Visualizzazione">
+                        <button type="button" id="btnViewTable" class="btn btn-outline-primary active" title="Visualizzazione tabellare" onclick="switchView('table')">
+                            <i class="bi bi-table"></i>
+                        </button>
+                        <button type="button" id="btnViewTree" class="btn btn-outline-primary" title="Visualizzazione ad albero" onclick="switchView('tree')">
+                            <i class="bi bi-diagram-2"></i>
+                        </button>
+                    </div>
+                </div>
             </div>
         </fieldset>
     </div>
@@ -75,6 +85,8 @@
     let currentData = [];
     let sortDirection = 1;
     let currentSortKey = "fileName";
+    let currentViewMode = 'table';
+
     const empty = document.getElementById("empty");
     const execSearch = document.getElementById("execSearch");
     const tableContainer = document.getElementById("tableContainer");
@@ -85,6 +97,25 @@
     const unlimit = document.getElementById("unlimit");
     const searchBtn = document.getElementById("searchBtn");
     const delBtn = document.getElementById("delBtn");
+
+    function switchView(mode) {
+        currentViewMode = mode;
+
+        document.getElementById('btnViewTable').classList.toggle('active', mode === 'table');
+        document.getElementById('btnViewTree').classList.toggle('active', mode === 'tree');
+
+        renderMain();
+    }
+
+    function renderMain() {
+        if (currentData.length === 0) return;
+
+        if (currentViewMode === 'tree') {
+            renderTree(currentData);
+        } else {
+            renderTable(currentData);
+        }
+    }
 
     function toggleSpinner() {
         const spinner = document.getElementById("loadingOverlay");
@@ -110,12 +141,14 @@
 
     function toggleUnlimit(e) {
         e.target.checked
-            ? limit.setAttribute("disabled", true)
-            : limit.removeAttribute("disabled");
+        ? limit.setAttribute("disabled", true)
+        : limit.removeAttribute("disabled");
     }
 
     function sortResults(key, isFirstLoad = false) {
-        if (!isFirstLoad && currentSortKey === key) {
+        if(currentViewMode === "tree") {
+            return;
+        } else if (!isFirstLoad && currentSortKey === key) {
             sortDirection *= -1;
         } else if (!isFirstLoad) {
             sortDirection = 1;
@@ -170,8 +203,8 @@
             <td>${!!item.lastModified ? new Date(item.lastModified).toLocaleString() : "N.D."}</td>
             <td>
                 <div class="d-flex gap-1">
-                    <button class="btn btn-sm btn-primary" onclick="downloadFile(${index},'${item.fileName}')">Scarica</button>
-                    <button class="btn btn-sm btn-danger" onclick="deleteFile(${index},'${item.fileName}')">Elimina</button>
+                    <button class="btn btn-sm btn-primary" onclick="downloadFile(event, ${index},'${item.fileName}')">Scarica</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteFile(event, ${index},'${item.fileName}')">Elimina</button>
                 </div>
             </td>
         `;
@@ -201,6 +234,7 @@
 
             tableContainer.classList.remove("d-none");
             delBtn.removeAttribute("disabled");
+            renderTable(currentData)
         } catch (err) {
             delBtn.setAttribute("disabled", true);
             execSearch.classList.remove("d-none");
@@ -290,8 +324,8 @@
         }
     }
 
-    async function downloadFile(index, id) {
-        const btn = document.querySelector(`#row-${index} button`);
+    async function downloadFile(event, index, id) {
+        const btn = event.target;
         try {
             btn.disabled = true;
             btn.textContent = "Scarico...";
@@ -309,6 +343,103 @@
             btn.textContent = "Scarica";
             console.error(err);
         }
+    }
+
+    function buildTree(files) {
+        const tree = {};
+        files.forEach((file, index) => {
+            const parts = file.fileName.split('/');
+            let currentLevel = tree;
+
+            parts.forEach((part, i) => {
+                if (i === parts.length - 1) {
+                    currentLevel[part] = { _isFile: true, data: file, originalIndex: index };
+                } else {
+                    if (!currentLevel[part]) currentLevel[part] = {};
+                    currentLevel = currentLevel[part];
+                }
+            });
+        });
+        return tree;
+    }
+    function renderTree(data) {
+        resultsBody.innerHTML = "";
+        totalEl.textContent = data.length;
+        const tree = buildTree(data);
+
+        function renderNode(node, name, depth = 0, parentPath = "") {
+            const safeParentPath = parentPath.replace(/[/ .]/g, '-');
+            const currentPath = parentPath + name + "/";
+            const safeCurrentPath = currentPath.replace(/[/ .]/g, '-');
+
+            if (node._isFile) {
+                const item = node.data;
+                const tr = document.createElement("tr");
+                tr.className = `file-row ${depth > 0 ? 'd-none' : ''} child-of-${safeParentPath}`;
+                tr.innerHTML = `
+                <td style="padding-left: ${(depth * 20)+5}px"><i class="bi bi-file-earmark me-2"></i>${name}</td>
+                <td>${formatSize(item.size)}</td>
+                <td>${item.lastModified ? new Date(item.lastModified).toLocaleString() : "N.D."}</td>
+                <td>
+                    <div class="d-flex gap-1">
+                        <button class="btn btn-sm btn-primary" onclick="downloadFile(event, ${node.originalIndex},'${item.fileName}')">Scarica</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteFile(event, ${node.originalIndex},'${item.fileName}')">Elimina</button>
+                    </div>
+                </td>`;
+                resultsBody.appendChild(tr);
+            } else {
+                const tr = document.createElement("tr");
+                tr.className = `table-secondary folder-row ${depth > 0 ? 'd-none' : ''} child-of-${safeParentPath}`;
+                tr.style.cursor = "pointer";
+
+                tr.innerHTML = `
+                <td colspan="4" style="padding-left: ${(depth * 20)+5}px" onclick="toggleFolder(this, '${safeCurrentPath}')">
+                    <i class="bi bi-chevron-right me-2 toggle-icon"></i>
+                    <i class="bi bi-folder-fill me-2 text-warning"></i><strong>${name}</strong>
+                </td>`;
+                resultsBody.appendChild(tr);
+
+                Object.keys(node).sort().forEach(childName => {
+                    renderNode(node[childName], childName, depth + 1, currentPath);
+                });
+            }
+        }
+
+        Object.keys(tree).sort().forEach(key => renderNode(tree[key], key));
+    }
+
+
+    function toggleFolder(element, path) {
+        const children = document.querySelectorAll(`.child-of-${path}`);
+        const icon = element.querySelector('.toggle-icon');
+
+        const isOpening = children.length > 0 && children[0].classList.contains('d-none');
+
+        if (isOpening) {
+            children.forEach(child => child.classList.remove('d-none'));
+            icon.classList.replace('bi-chevron-right', 'bi-chevron-down');
+        } else {
+            closeRecursive(path);
+            icon.classList.replace('bi-chevron-down', 'bi-chevron-right');
+        }
+    }
+
+    function closeRecursive(path) {
+        const children = document.querySelectorAll(`.child-of-${path}`);
+        children.forEach(child => {
+            child.classList.add('d-none');
+            if (child.classList.contains('folder-row')) {
+                const folderName = child.innerText.trim();
+                const icon = child.querySelector('.toggle-icon');
+                if (icon) icon.classList.replace('bi-chevron-down', 'bi-chevron-right');
+            }
+        });
+
+        document.querySelectorAll(`[class*="child-of-${path}"]`).forEach(el => {
+            el.classList.add('d-none');
+            const icon = el.querySelector('.toggle-icon');
+            if (icon) icon.classList.replace('bi-chevron-down', 'bi-chevron-right');
+        });
     }
 </script>
 
