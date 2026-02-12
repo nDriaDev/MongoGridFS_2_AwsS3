@@ -1,5 +1,5 @@
 <div align="center">
-    <img src="https://raw.githubusercontent.com/nDriaDev/vite-plugin-universal-api/main/resources/logo.png" alt="Logo">
+    <img src="https://raw.githubusercontent.com/nDriaDev/vite-plugin-universal-api/main/resources/logo.png" alt="Logo"/>
 <br>
 </div>
 
